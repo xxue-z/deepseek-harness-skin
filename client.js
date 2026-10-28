@@ -76,7 +76,10 @@ window.__ModuleLoader__.load({
         'design.fallback': '模型不可用，已用离线配色生成',
         'design.empty': '请先写一句描述，或选一张图片。',
         'import.title': '从文件夹导入',
-        'import.desc': '输入 Codex 主题文件夹（含 theme.json），或 .zip 主题包的完整路径。',
+        'import.desc': '用系统选择器挑一个 Codex 主题文件夹或 .zip 主题包。',
+        'import.pickHint': '选中后会先检查里面有没有 theme.json，没有则不会导入。',
+        'import.manual': '或者直接粘贴路径',
+        'action.pick': '选择文件夹或 ZIP',
         'import.placeholder': 'C:\\Users\\you\\AppData\\Local\\CodexDreamSkin\\themes\\studio.crimson-mecha-nova',
         'import.working': '正在导入…',
         'delete.title': '删除这个皮肤？',
@@ -148,7 +151,10 @@ window.__ModuleLoader__.load({
         'design.fallback': 'No model available — used the offline palette',
         'design.empty': 'Write a description or pick an image first.',
         'import.title': 'Import from a folder',
-        'import.desc': 'Enter the full path of a Codex theme folder (with theme.json) or a .zip pack.',
+        'import.desc': 'Pick a Codex theme folder or a .zip pack with the system picker.',
+        'import.pickHint': 'The folder is checked for theme.json before anything is imported.',
+        'import.manual': 'Or paste a path',
+        'action.pick': 'Choose folder or ZIP',
         'import.placeholder': 'C:\\Users\\you\\AppData\\Local\\CodexDreamSkin\\themes\\studio.crimson-mecha-nova',
         'import.working': 'Importing…',
         'delete.title': 'Delete this skin?',
@@ -392,6 +398,7 @@ window.__ModuleLoader__.load({
       pingStatus: (status) => request('ping', { method: 'POST', body: JSON.stringify(status) }),
       scan: () => request('scan', { method: 'POST', body: '{}' }),
       revealSources: () => request('reveal-sources', { method: 'POST', body: '{}' }),
+      pickSource: () => request('pick-source', { method: 'POST', body: '{}' }),
       importPath: (path) => request('import-path', { method: 'POST', body: JSON.stringify({ path }) }),
       importZip: (name, data) => request('import-zip', { method: 'POST', body: JSON.stringify({ name, data }) }),
       apply: (id) => request('apply', { method: 'POST', body: JSON.stringify({ id }) }),
@@ -1029,7 +1036,7 @@ window.__ModuleLoader__.load({
               ],
             })
           : null,
-        dialog === 'import' ? h(ImportDialog, { t, busy: busy === 'import', onClose: () => setDialog(null), onSubmit: (path) => run('import', () => api.importPath(path), (payload) => `${t('notice.imported')}：${payload.result.id}`).then(() => setDialog(null)) }) : null,
+        dialog === 'import' ? h(ImportDialog, { t, busy: busy === 'import', onClose: () => setDialog(null), onPick: (path) => run('import', () => api.importPath(path), (payload) => `${t('notice.imported')}：${payload.result.id}`).then((payload) => { if (payload) setDialog(null) }) }) : null,
         dialog === 'design'
           ? h(DesignDialog, {
               t,
@@ -1207,30 +1214,49 @@ window.__ModuleLoader__.load({
       return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
     }
 
-    function ImportDialog({ t, busy, onClose, onSubmit }) {
+    function ImportDialog({ t, busy, onClose, onPick }) {
       const [path, setPath] = useState('')
-      return h(
-        Dialog,
-        {
-          t,
-          title: t('import.title'),
-          description: t('import.desc'),
-          onClose,
-          footer: [
-            h(Button, { key: 'cancel', onClick: onClose }, t('action.cancel')),
-            h(Button, { key: 'go', variant: 'primary', busy, disabled: path.trim() === '', onClick: () => onSubmit(path.trim()) }, t('action.apply')),
-          ],
-        },
-        h('input', {
-          className: 'dsks-input',
-          value: path,
-          autoFocus: true,
-          placeholder: t('import.placeholder'),
-          onChange: (event) => setPath(event.target.value),
-          onKeyDown: (event) => {
-            if (event.key === 'Enter' && path.trim() !== '') onSubmit(path.trim())
-          },
-        }),
+      const [error, setError] = useState(null)
+      const [picking, setPicking] = useState(false)
+      const pick = async () => {
+        setPicking(true)
+        setError(null)
+        try {
+          const picked = await api.pickSource()
+          if (!picked?.path) return
+          // The OS picker returns a folder or a .zip; hand it straight to the
+          // import call so a second "apply" click is not required.
+          await onPick(picked.path)
+        } catch (failure) {
+          setError(failure instanceof Error ? failure.message : String(failure))
+        } finally {
+          setPicking(false)
+        }
+      }
+      return h(Dialog, {
+        t,
+        title: t('import.title'),
+        description: t('import.desc'),
+        onClose,
+        footer: [
+          h(Button, { key: 'cancel', onClick: onClose }, t('action.cancel')),
+          h(Button, { key: 'pick', variant: 'primary', icon: 'folder', busy: picking || busy, onClick: pick }, t('action.pick')),
+        ],
+      },
+        h('p', { className: 'dsks-hint' }, t('import.pickHint')),
+        error ? h('p', { className: 'dsks-error' }, error) : null,
+        h('details', { className: 'dsks-fallback' },
+          h('summary', null, t('import.manual')),
+          h('input', {
+            className: 'dsks-input',
+            value: path,
+            placeholder: t('import.placeholder'),
+            onChange: (event) => setPath(event.target.value),
+            onKeyDown: (event) => {
+              if (event.key === 'Enter' && path.trim() !== '') onPick(path.trim())
+            },
+          }),
+        ),
       )
     }
 
@@ -1535,6 +1561,8 @@ window.__ModuleLoader__.load({
 .dsks-dialog-desc{margin:0;font-size:13px;color:var(--dsw-alias-label-secondary)}
 .dsks-dialog-body{display:flex;flex-direction:column;gap:12px}
 .dsks-dialog-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+.dsks-fallback{font-size:12px;color:var(--dsw-alias-label-tertiary)}
+.dsks-fallback summary{cursor:pointer;padding:2px 0}
 .dsks-input,.dsks-textarea{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;resize:vertical}
 .dsks-input:focus,.dsks-textarea:focus{outline:none;border-color:var(--dsw-alias-brand-primary)}
 .dsks-form{display:flex;flex-direction:column;gap:12px}
@@ -1559,7 +1587,7 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots'],
       /** Test seam: the row and detail card are unreachable from a static render. */
-      __components: { SkinRow, SkinDetail },
+      __components: { SkinRow, SkinDetail, ImportDialog },
       apply(ctx) {
         const runtime = createRuntime(ctx)
         ctx.effect(() => runtime.start())

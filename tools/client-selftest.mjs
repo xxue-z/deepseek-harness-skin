@@ -384,6 +384,20 @@ console.log('render walk (components execute without React DOM)')
     // Only one row may be open: the page keeps a single selected id.
     check('row toggles through one callback', typeof handlers.onToggle === 'function')
   }
+  // The import dialog opens the OS picker; it must render before any path
+  // exists, so a missing binding there would blank the settings page too.
+  const ImportDialog = exportsModule.__components?.ImportDialog
+  check('import dialog is exported for testing', typeof ImportDialog === 'function')
+  if (typeof ImportDialog === 'function') {
+    const dialog = ImportDialog({
+      t: (key) => key,
+      busy: false,
+      onClose: () => {},
+      onPick: async () => {},
+    })
+    check('import dialog offers a picker', JSON.stringify(dialog).includes('action.pick'))
+    check('import dialog keeps a manual path fallback', JSON.stringify(dialog).includes('import.manual'))
+  }
   check('list styles are installed', document.head && styleTags.some((tag) => tag.getAttribute('data-plugin-css') === 'manager' && tag.textContent.includes('.dsks-row-wrap')))
 }
 
