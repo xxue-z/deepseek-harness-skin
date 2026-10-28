@@ -100,6 +100,30 @@ window.__ModuleLoader__.load({
         'meta.panel': '面板',
         'meta.canvas': '画布',
         'meta.active': '当前',
+        'action.videoSettings': '动态主题设置',
+        'label.dynamic': '动态',
+        'label.video': '动态背景',
+        'video.title': '动态主题设置',
+        'video.desc': '这些设置对所有带 MP4 壁纸的主题生效。',
+        'video.autoplay': '自动播放',
+        'video.autoplayHint': '切换主题后自动播放动态壁纸；关掉后停在静态海报。',
+        'video.muted': '静音',
+        'video.mutedHint': '关掉后视频带声音；浏览器要求这一次点击来允许播放声音。',
+        'video.shortcut': '播放 / 暂停快捷键',
+        'video.shortcutHint': '任意界面按一下就切换；也可以在「设置 → 快捷键」里改键位。',
+        'video.shortcutFallback': '当前仅窗口聚焦时生效。',
+        'video.shortcutUnbound': '未绑定',
+        'video.state': '当前主题',
+        'video.statePlaying': '动态壁纸播放中',
+        'video.statePaused': '已暂停（显示当前帧）',
+        'video.stateIdle': '未开始播放',
+        'video.stateNone': '这个主题没有动态背景',
+        'video.play': '播放',
+        'video.pause': '暂停',
+        'video.meta': '{w}×{h} · {s} 秒 · {mb} MB',
+        'video.missingHint': '原主题带 MP4，可点「补全动态背景」',
+        'action.attachVideo': '补全动态背景',
+        'notice.videoAttached': '已补全动态背景',
       },
       en: {
         'section.title': 'Theme Skins',
@@ -178,6 +202,30 @@ window.__ModuleLoader__.load({
         'meta.panel': 'Panel',
         'meta.canvas': 'Canvas',
         'meta.active': 'Active',
+        'action.videoSettings': 'Dynamic background',
+        'label.dynamic': 'Dynamic',
+        'label.video': 'Background video',
+        'video.title': 'Dynamic background',
+        'video.desc': 'These settings apply to every theme that ships an MP4 wallpaper.',
+        'video.autoplay': 'Autoplay',
+        'video.autoplayHint': 'Start the video when a theme is applied; off shows the static poster only.',
+        'video.muted': 'Muted',
+        'video.mutedHint': 'Turn this off for sound; the browser needs this click to allow audible playback.',
+        'video.shortcut': 'Play / pause shortcut',
+        'video.shortcutHint': 'Press it from anywhere; you can rebind it in Settings → Shortcuts.',
+        'video.shortcutFallback': 'Currently only while the window has focus.',
+        'video.shortcutUnbound': 'Unbound',
+        'video.state': 'Current theme',
+        'video.statePlaying': 'Background video playing',
+        'video.statePaused': 'Paused on the current frame',
+        'video.stateIdle': 'Not started',
+        'video.stateNone': 'This theme has no background video',
+        'video.play': 'Play',
+        'video.pause': 'Pause',
+        'video.meta': '{w}×{h} · {s}s · {mb} MB',
+        'video.missingHint': 'The pack ships an MP4 — use "Attach video"',
+        'action.attachVideo': 'Attach video',
+        'notice.videoAttached': 'Background video attached',
       },
     }
 
@@ -346,26 +394,37 @@ window.__ModuleLoader__.load({
 
     const GENERIC_FONTS = /^(ui-|system-ui|sans-serif|serif|monospace|inherit|-apple-system|blinkmacsystemfont|helvetica|arial|"helvetica neue"|"segoe ui"|"pingfang sc"|"microsoft yahei")/i
 
+    /**
+     * Strength of the neutral veil drawn over the artwork.
+     *
+     * The poster and the video share it so switching between them never changes
+     * the brightness of the background. It is never the theme's own colour and
+     * never black: a tinted veil washed photos out, a black one turned bright
+     * wallpapers muddy. A theme's `--ds-theme-image-dim` can strengthen it.
+     */
+    function veilAlphaFor(skin, transparency) {
+      const visibility = Number.isFinite(transparency) ? Math.max(0, Math.min(100, transparency)) : skin.transparency ?? 60
+      const veil = (100 - visibility) / 100
+      const declared = /--ds-theme-image-dim\s*:/i.test(skin.codex?.themeCss ?? skin.css ?? '')
+      const extra = declared ? Math.max(0, Math.min(0.85, Number(skin.wallpaper?.dim) || 0)) : 0
+      return Math.round(Math.min(1, veil + extra) * 1000) / 1000
+    }
+
     function wallpaperCss(skin, transparency) {
       const rules = []
       if (skin.wallpaper?.url) {
-        // The veil is neutral and light, never the theme's background colour and
-// never black: a tinted veil washed photos out, and a black one turned
-// bright wallpapers muddy. Strength is the complement of the visibility
-// slider; a theme's own --ds-theme-image-dim can strengthen it further.
-        const visibility = Number.isFinite(transparency) ? Math.max(0, Math.min(100, transparency)) : skin.transparency ?? 60
-        const veil = (100 - visibility) / 100
-        const declared = /--ds-theme-image-dim\s*:/i.test(skin.codex?.themeCss ?? skin.css ?? '')
-        const extra = declared ? Math.max(0, Math.min(0.85, Number(skin.wallpaper.dim) || 0)) : 0
-        const dim = Math.min(1, veil + extra)
-        const alpha = Math.round(dim * 1000) / 1000
-        const scrim = dim > 0 ? `linear-gradient(rgba(255, 255, 255, ${alpha}), rgba(255, 255, 255, ${alpha})), ` : ''
+        const alpha = veilAlphaFor(skin, transparency)
+        const scrim = alpha > 0 ? `linear-gradient(rgba(255, 255, 255, ${alpha}), rgba(255, 255, 255, ${alpha})), ` : ''
         const x = Math.round((skin.wallpaper.focusX ?? 0.5) * 100)
         const y = Math.round((skin.wallpaper.focusY ?? 0.5) * 100)
         rules.push(
           `body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;` +
             `background-image:${scrim}url("${skin.wallpaper.url}");background-size:cover;background-position:${x}% ${y}%;background-repeat:no-repeat;}`,
         )
+        rules.push('#root{position:relative;z-index:1;}')
+      } else if (skin.video?.url) {
+        // A video-only skin has no poster, but the layer still needs #root above
+        // it for the same reason.
         rules.push('#root{position:relative;z-index:1;}')
       }
       // Dialogs float above other UI; blurring their backdrop is what turns a
@@ -410,6 +469,8 @@ window.__ModuleLoader__.load({
       apply: (id) => request('apply', { method: 'POST', body: JSON.stringify({ id }) }),
       deactivate: () => request('deactivate', { method: 'POST', body: '{}' }),
       transparency: (id, value) => request('transparency', { method: 'POST', body: JSON.stringify({ id, value }) }),
+      videoSettings: (patch) => request('video-settings', { method: 'POST', body: JSON.stringify(patch ?? {}) }),
+      refreshVideo: (id) => request('refresh-video', { method: 'POST', body: JSON.stringify({ id }) }),
       delete: (id) => request('delete', { method: 'POST', body: JSON.stringify({ id }) }),
       recolor: (id, palette) => request('recolor', { method: 'POST', body: JSON.stringify({ id, palette }) }),
       design: (input) => request('design', { method: 'POST', body: JSON.stringify(input) }),
@@ -434,6 +495,313 @@ window.__ModuleLoader__.load({
       let loadError = null
 
       const theme = () => ctx.get('theme')
+
+      /* ---------------------------------------------------------------- */
+      /* dynamic background: one fixed <video> layer behind #root           */
+      /* ---------------------------------------------------------------- */
+
+      let videoSettings = { autoplay: true, muted: true }
+      const video = { layer: null, element: null, skinId: null, failed: false, userPaused: false, manualStarted: false, shortcutRegistered: false }
+      let motionQuery = null
+      const isMac = typeof navigator !== 'undefined' && /mac/i.test(`${navigator.platform ?? ''} ${navigator.userAgent ?? ''}`)
+      const SHORTCUT_ID = 'skin.toggleVideo'
+
+      function currentSkin() {
+        return snapshot?.themes?.find((skin) => skin.id === appliedId) ?? null
+      }
+
+      /** Keycaps the shortcut row shows, matching the binding in force. */
+      function shortcutKeys() {
+        try {
+          const service = ctx.get('shortcuts')
+          const rows = service?.catalog?.getSnapshot?.() ?? []
+          const row = rows.find((entry) => entry.id === SHORTCUT_ID)
+          if (row && Array.isArray(row.keys) && row.keys.length > 0) return row.keys
+        } catch {
+          /* no shortcut service in this build */
+        }
+        return isMac ? ['⌘', '⌥', 'P'] : ['Ctrl', '+', 'Alt', '+', 'P']
+      }
+
+      function subscribeShortcut(listener) {
+        try {
+          const service = ctx.get('shortcuts')
+          if (service?.catalog?.subscribe) return service.catalog.subscribe(() => listener())
+        } catch {
+          /* no shortcut service */
+        }
+        return () => {}
+      }
+
+      function motionReduced() {
+        if (motionQuery === null) {
+          try {
+            motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : false
+          } catch {
+            motionQuery = false
+          }
+        }
+        return Boolean(motionQuery && motionQuery.matches)
+      }
+
+      /** Whether the current theme's video should be on screen right now. */
+      function shouldPlay(skin) {
+        if (!skin?.video?.url || video.failed) return false
+        if (video.userPaused) return false
+        if (motionReduced()) return false
+        return videoSettings.autoplay || video.manualStarted
+      }
+
+      function attemptPlay(element) {
+        if (!element) return
+        let result = null
+        try {
+          result = element.play?.()
+        } catch {
+          result = null
+        }
+        if (result && typeof result.catch === 'function') {
+          result.catch(() => {
+            // Autoplay refused: keep the poster and wait for a gesture (the
+            // shortcut or the settings switch) instead of retrying in a loop.
+            video.userPaused = true
+            destroyVideo()
+            emit()
+          })
+        }
+      }
+
+      function destroyVideo() {
+        const layer = video.layer
+        const element = video.element
+        video.layer = null
+        video.element = null
+        video.skinId = null
+        if (element) {
+          try {
+            element.pause()
+          } catch {
+            /* already detached */
+          }
+          try {
+            element.removeAttribute('src')
+            element.load?.()
+          } catch {
+            /* already detached */
+          }
+        }
+        try {
+          layer?.remove()
+        } catch {
+          /* already detached */
+        }
+      }
+
+      function mountVideo(skin) {
+        if (typeof document === 'undefined' || typeof document.createElement !== 'function' || document.body === undefined) return
+        destroyVideo()
+        const layer = document.createElement('div')
+        layer.className = 'dsks-video-layer'
+        layer.setAttribute('data-plugin', PLUGIN_ID)
+        layer.setAttribute('aria-hidden', 'true')
+        const element = document.createElement('video')
+        element.muted = videoSettings.muted !== false
+        element.loop = true
+        element.playsInline = true
+        element.preload = 'auto'
+        element.setAttribute('playsinline', '')
+        element.setAttribute('disablepictureinpicture', '')
+        element.setAttribute('disableremoteplayback', '')
+        element.setAttribute('aria-hidden', 'true')
+        const x = Math.round((skin.wallpaper?.focusX ?? 0.5) * 100)
+        const y = Math.round((skin.wallpaper?.focusY ?? 0.5) * 100)
+        if (element.style) element.style.objectPosition = `${x}% ${y}%`
+        element.src = skin.video.url
+        const veil = document.createElement('span')
+        veil.className = 'dsks-video-veil'
+        layer.append(element, veil)
+        element.addEventListener('loadeddata', () => layer.setAttribute('data-ready', ''))
+        element.addEventListener('error', () => {
+          // Ignore the teardown itself: clearing `src` and calling `load()` must
+          // not poison the next mount with a permanent failure flag.
+          if (video.element !== element) return
+          video.failed = true
+          destroyVideo()
+          emit()
+        })
+        document.body.append(layer)
+        video.layer = layer
+        video.element = element
+        video.skinId = skin.id
+      }
+
+      function paintVeil(skin, transparency) {
+        const veil = video.layer?.querySelector?.('.dsks-video-veil')
+        if (!veil || !veil.style) return
+        veil.style.background = `rgba(255, 255, 255, ${veilAlphaFor(skin, transparency)})`
+      }
+
+      function syncVideo(skin, transparency) {
+        if (!skin?.video?.url || !shouldPlay(skin)) {
+          destroyVideo()
+          return
+        }
+        if (!video.layer || video.skinId !== skin.id) mountVideo(skin)
+        paintVeil(skin, transparency)
+        if (video.element && video.element.paused) attemptPlay(video.element)
+      }
+
+      /** Play/pause for the active theme; also the shortcut's handler. */
+      function toggleVideo() {
+        const skin = currentSkin()
+        if (!skin?.video) return { playing: false, hasVideo: false }
+        const playing = Boolean(video.element) && !video.element.paused
+        if (playing) {
+          video.userPaused = true
+          try {
+            video.element.pause()
+          } catch {
+            /* already detached */
+          }
+          emit()
+          return { playing: false, hasVideo: true }
+        }
+        video.userPaused = false
+        video.manualStarted = true
+        video.failed = false
+        syncVideo(skin, skin.transparency)
+        emit()
+        return { playing: true, hasVideo: true }
+      }
+
+      async function updateVideoSettings(patch) {
+        const next = { ...videoSettings, ...(patch && typeof patch === 'object' ? patch : {}) }
+        videoSettings = next
+        if (snapshot) snapshot = { ...snapshot, video: { ...next } }
+        if (patch?.autoplay === false) {
+          video.manualStarted = false
+          destroyVideo()
+        }
+        if (patch?.autoplay === true) video.userPaused = false
+        if (typeof patch?.muted === 'boolean') {
+          // Switching sound on is a gesture, so it may also unlock a video the
+          // autoplay policy paused earlier (even if its element is gone).
+          if (!patch.muted) video.userPaused = false
+          if (video.element) video.element.muted = patch.muted
+        }
+        const skin = currentSkin()
+        if (skin) syncVideo(skin, skin.transparency)
+        emit()
+        try {
+          const payload = await api.videoSettings(patch)
+          if (payload?.snapshot) applySnapshot(payload.snapshot)
+        } catch (error) {
+          console.error('[dsh-skin] 保存动态主题设置失败', error)
+        }
+        return next
+      }
+
+      function onVisibilityChange() {
+        const skin = currentSkin()
+        if (!skin?.video) return
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+          try {
+            video.element?.pause()
+          } catch {
+            /* already detached */
+          }
+          return
+        }
+        if (shouldPlay(skin) && video.element?.paused) attemptPlay(video.element)
+      }
+
+      function onMotionChange() {
+        const skin = currentSkin()
+        if (!skin) return
+        syncVideo(skin, skin.transparency)
+        emit()
+      }
+
+      /** Register the play/pause command with the app's shortcut system. */
+      function registerShortcut(service) {
+        if (!service?.register || video.shortcutRegistered) return null
+        const binding = (platform) => ({ code: 'KeyP', modifiers: platform === 'macos' ? ['meta', 'alt'] : ['control', 'alt'] })
+        try {
+          const disposer = service.register({
+            id: SHORTCUT_ID,
+            label: () => translate(ctx, 'video.shortcut'),
+            aliases: ['dynamic background', 'play pause'],
+            defaults: {
+              'desktop:macos': binding('macos'),
+              'desktop:windows': binding('windows'),
+              'desktop:linux': binding('linux'),
+              'web:macos': binding('macos'),
+              'web:windows': binding('windows'),
+            },
+            regions: ['page', 'editable', 'terminal'],
+            modals: [],
+            resolve: () => ({
+              status: 'handled',
+              run: () => {
+                toggleVideo()
+              },
+            }),
+          })
+          video.shortcutRegistered = true
+          return disposer
+        } catch (error) {
+          console.warn('[dsh-skin] 注册播放快捷键失败，改为窗口内快捷键', error)
+          return null
+        }
+      }
+
+      /** Fallback for builds without the shortcut registry: window-level keydown. */
+      function installFallbackShortcut() {
+        if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {}
+        const onKeyDown = (event) => {
+          if (video.shortcutRegistered) return
+          if (!event.altKey || event.shiftKey) return
+          if (!(isMac ? event.metaKey : event.ctrlKey)) return
+          if (event.code !== 'KeyP' && String(event.key ?? '').toLowerCase() !== 'p') return
+          const target = event.target
+          if (target && typeof target.closest === 'function' && (target.isContentEditable || target.closest('input, textarea, select, [contenteditable="true"]'))) return
+          event.preventDefault?.()
+          toggleVideo()
+        }
+        window.addEventListener('keydown', onKeyDown, true)
+        return () => window.removeEventListener('keydown', onKeyDown, true)
+      }
+
+      function startShortcut() {
+        const disposers = [installFallbackShortcut()]
+        let service = null
+        try {
+          service = ctx.get('shortcuts')
+        } catch {
+          service = null
+        }
+        if (service) {
+          const disposer = registerShortcut(service)
+          if (disposer) disposers.push(disposer)
+        } else if (typeof ctx.inject === 'function') {
+          // The shortcuts plugin may mount after this one; inject waits for it.
+          ctx.inject(['shortcuts'], (shortcutCtx) => {
+            shortcutCtx.effect(() => {
+              const disposer = registerShortcut(shortcutCtx.shortcuts)
+              return () => disposer?.()
+            })
+          })
+        }
+        return () => {
+          for (const dispose of disposers.reverse()) {
+            try {
+              dispose()
+            } catch {
+              /* already disposed */
+            }
+          }
+        }
+      }
 
       function emit() {
         for (const subscriber of subscribers) {
@@ -512,6 +880,7 @@ window.__ModuleLoader__.load({
           overrideDisposer = null
         }
         writeWallpaper(null)
+        destroyVideo()
         appliedId = null
         const service = theme()
         if (restoreTheme && service?.setTheme) {
@@ -549,6 +918,14 @@ window.__ModuleLoader__.load({
             overrideDisposer = service.overrideTokens(PLUGIN_ID, alphaTokens(skin, skin.transparencyOverridden ? skin.transparency : NaN))
           }
           appliedId = skin.id
+          // A different theme restarts the playback policy: a manual pause does
+          // not leak into the next skin, and a manual start does not either.
+          if (video.skinId !== skin.id) {
+            video.userPaused = false
+            video.manualStarted = false
+            video.failed = false
+          }
+          syncVideo(skin, skin.transparency)
         } catch (error) {
           console.error(`[dsh-skin] 应用皮肤失败 ${skin.id}`, error)
         } finally {
@@ -564,6 +941,12 @@ window.__ModuleLoader__.load({
         if (!next) {
           emit()
           return
+        }
+        if (next.video && typeof next.video === 'object') {
+          videoSettings = {
+            autoplay: next.video.autoplay !== false,
+            muted: next.video.muted !== false,
+          }
         }
         mutating = true
         try {
@@ -592,6 +975,7 @@ window.__ModuleLoader__.load({
         if (active && appliedId === id) {
           const service = theme()
           writeWallpaper(active, value)
+          paintVeil(active, value)
           if (service?.overrideTokens) {
             if (overrideDisposer) overrideDisposer()
             overrideDisposer = service.overrideTokens(PLUGIN_ID, alphaTokens(active, value))
@@ -655,8 +1039,34 @@ window.__ModuleLoader__.load({
           }
         }
         void tick()
+        motionReduced() // resolve the media query before subscribing to it
+        const disposeShortcut = startShortcut()
+        const onVisibility = () => onVisibilityChange()
+        const onMotion = () => onMotionChange()
+        try {
+          if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('visibilitychange', onVisibility)
+        } catch {
+          /* no document */
+        }
+        try {
+          if (motionQuery && typeof motionQuery.addEventListener === 'function') motionQuery.addEventListener('change', onMotion)
+        } catch {
+          /* no media query support */
+        }
         return () => {
           cancelled = true
+          disposeShortcut()
+          try {
+            if (typeof document !== 'undefined' && typeof document.removeEventListener === 'function') document.removeEventListener('visibilitychange', onVisibility)
+          } catch {
+            /* no document */
+          }
+          try {
+            if (motionQuery && typeof motionQuery.removeEventListener === 'function') motionQuery.removeEventListener('change', onMotion)
+          } catch {
+            /* no media query support */
+          }
+          destroyVideo()
           clearApplied()
           for (const id of [...registered.keys()]) removeRegistration(id)
           if (styleElement) styleElement.remove()
@@ -702,6 +1112,15 @@ window.__ModuleLoader__.load({
         previewTransparency,
         replaceSkin,
         watchThemeChanges,
+        getVideoSettings: () => ({ ...videoSettings }),
+        updateVideoSettings,
+        toggleVideo,
+        isVideoPlaying: () => Boolean(video.element) && !video.element.paused,
+        isVideoStarted: () => Boolean(video.element),
+        getActiveSkin: () => currentSkin(),
+        getShortcutKeys: () => shortcutKeys(),
+        subscribeShortcut,
+        isShortcutRegistered: () => video.shortcutRegistered,
         deactivateLocal() {
           if (!snapshot) return
           snapshot = { ...snapshot, activeId: null }
@@ -727,6 +1146,8 @@ window.__ModuleLoader__.load({
       folder: 'M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z',
       palette: 'M12 3a9 9 0 1 0 0 18c1.4 0 2-0.9 2-1.8 0-0.8-0.6-1.4-0.6-2.2 0-0.9 0.7-1.5 1.7-1.5H17a4 4 0 0 0 4-4c0-4.7-4-8.5-9-8.5zM7.5 10.5h.01M10 7.5h.01M14 7.5h.01M16.5 10.5h.01',
       image: 'M4 5h16v14H4zM4 15l4.5-4.5 3.5 3.5 3-3L20 15M15 9.5h.01',
+      play: 'M8 5v14l11-7z',
+      pause: 'M9 5v14M15 5v14',
       chevron: 'M8 10l4 4 4-4',
     }
 
@@ -868,7 +1289,11 @@ window.__ModuleLoader__.load({
             const parts = []
             if (imported > 0) parts.push(t('notice.importedCount', { n: imported }))
             if (skipped > 0) parts.push(t('notice.skippedCount', { n: skipped }))
-            return `${t('notice.scan')}：${parts.join('，')}`
+            // A skipped video keeps the poster, so say why instead of leaving the
+            // user wondering why the theme is not moving.
+            const warnings = payload.results.flatMap((result) => result.warnings ?? [])
+            const notice = warnings.length > 0 ? `；${warnings.slice(0, 2).join('；')}` : ''
+            return `${t('notice.scan')}：${parts.join('，')}${notice}`
           },
         )
 
@@ -930,7 +1355,7 @@ window.__ModuleLoader__.load({
           const chunk = 0x8000
           for (let index = 0; index < bytes.length; index += chunk) binary += String.fromCharCode.apply(null, bytes.subarray(index, index + chunk))
           return api.importZip(file.name, btoa(binary))
-        }, (payload) => `${t('notice.imported')}：${payload.result.id}`).then((payload) => {
+        }, (payload) => `${t('notice.imported')}：${payload.result.id}${payload.result.warnings?.length ? `；${payload.result.warnings[0]}` : ''}`).then((payload) => {
           if (fileInput.current) fileInput.current.value = ''
           return payload
         })
@@ -943,6 +1368,11 @@ window.__ModuleLoader__.load({
         const palette = dominantColorsFromUrl(skin.wallpaper?.url)
         run('recolor', async () => api.recolor(skin.id, await palette), t('notice.saved'))
       }
+
+      // Skins imported before dynamic backgrounds existed keep only the source
+      // metadata; this pulls the mp4 in without rewriting the rest.
+      const onAttachVideo = (skin) =>
+        run('attachVideo', () => api.refreshVideo(skin.id), t('notice.videoAttached'))
 
       if (!snapshot) {
         return h(
@@ -970,6 +1400,7 @@ window.__ModuleLoader__.load({
             'div',
             { className: 'dsks-actions' },
             h(Button, { icon: 'refresh', onClick: onRefresh, busy: busy === 'refresh' }, t('action.refresh')),
+            h(Button, { icon: 'play', onClick: () => setDialog('video') }, t('action.videoSettings')),
             h(Button, { icon: 'scan', onClick: onScan, busy: busy === 'scan' }, t('action.scan')),
             h(Button, { icon: 'upload', onClick: () => setDialog('import'), busy: busy === 'zip' }, t('action.import')),
             h(Button, { variant: 'primary', icon: 'sparkle', onClick: () => setDialog('design') }, t('action.design')),
@@ -1013,6 +1444,7 @@ window.__ModuleLoader__.load({
                   onDelete: () => setDialog('delete'),
                   onExport: () => onExport(skin.id),
                   onRecolor: () => onRecolor(skin),
+                  onAttachVideo: () => onAttachVideo(skin),
                   onTransparency: (value) => onTransparencyInput(skin, value),
                   onReset: () => onResetTransparency(skin),
                 }),
@@ -1030,6 +1462,9 @@ window.__ModuleLoader__.load({
               ],
             })
           : null,
+        dialog === 'video'
+          ? h(VideoSettingsDialog, { t, runtime, onClose: () => setDialog(null) })
+          : null,
         dialog === 'import'
           ? h(ImportDialog, {
               t,
@@ -1038,7 +1473,7 @@ window.__ModuleLoader__.load({
               onClose: () => setDialog(null),
               onZip: (file) => onZipChosen(file).then((payload) => { if (payload) setDialog(null) }),
               onPick: (path) =>
-                run('import', () => api.importPath(path), (payload) => `${t('notice.imported')}：${payload.result.id}`).then((payload) => {
+                run('import', () => api.importPath(path), (payload) => `${t('notice.imported')}：${payload.result.id}${payload.result.warnings?.length ? `；${payload.result.warnings[0]}` : ''}`).then((payload) => {
                   if (payload) setDialog(null)
                 }),
             })
@@ -1064,7 +1499,7 @@ window.__ModuleLoader__.load({
      * card directly beneath it; the page keeps a single open row, so opening
      * one collapses the previous one.
      */
-    function SkinRow({ skin, active, open, t, busy, draftTransparency, onToggle, onApply, onDeactivate, onDelete, onExport, onRecolor, onTransparency, onReset }) {
+    function SkinRow({ skin, active, open, t, busy, draftTransparency, onToggle, onApply, onDeactivate, onDelete, onExport, onRecolor, onAttachVideo, onTransparency, onReset }) {
       return h(
         'div',
         { className: 'dsks-row-wrap', 'data-open': open ? '' : undefined, 'data-active': active ? '' : undefined },
@@ -1088,6 +1523,7 @@ window.__ModuleLoader__.load({
               t(`appearance.${skin.appearance}`) ?? skin.appearance,
               ' · ',
               t(`origin.${skin.origin?.kind ?? 'manual'}`) ?? skin.origin?.kind,
+              skin.video ? ` · ${t('label.dynamic')}` : '',
               skin.description ? ` · ${skin.description}` : '',
             ),
           ),
@@ -1110,6 +1546,7 @@ window.__ModuleLoader__.load({
                 onDelete,
                 onExport,
                 onRecolor,
+                onAttachVideo,
                 onTransparency,
                 onReset,
                 onClose: onToggle,
@@ -1120,7 +1557,7 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function SkinDetail({ skin, active, t, busy, draftTransparency, onApply, onDeactivate, onDelete, onExport, onRecolor, onTransparency, onReset, onClose, compact = false }) {
+    function SkinDetail({ skin, active, t, busy, draftTransparency, onApply, onDeactivate, onDelete, onExport, onRecolor, onAttachVideo, onTransparency, onReset, onClose, compact = false }) {
       const transparency = draftTransparency ?? skin.transparency
       const codex = skin.codex
       const head = compact
@@ -1159,6 +1596,8 @@ window.__ModuleLoader__.load({
               h('dd', null, formatTime(skin.createdAt)),
               h('dt', null, t('label.wallpaper')),
               h('dd', null, skin.wallpaper ? `${Math.round((skin.wallpaper.focusX ?? 0.5) * 100)}% / ${Math.round((skin.wallpaper.focusY ?? 0.5) * 100)}% · ${Math.round((skin.wallpaper.dim ?? 0) * 100)}% 暗化` : '—'),
+              h('dt', null, t('label.video')),
+              h('dd', null, skin.video ? `${skin.video.width}×${skin.video.height} · ${(Math.round((skin.video.durationMs ?? 0) / 100) / 10).toFixed(1)}s` : codex?.video ? t('video.missingHint') : '—'),
               codex?.hasSafeCss ? h('dt', null, t('label.safeCss')) : null,
               codex?.hasSafeCss ? h('dd', null, '已解析（未逐条套用）') : null,
               h('dt', null, t('label.palette')),
@@ -1204,6 +1643,7 @@ window.__ModuleLoader__.load({
           { className: 'dsks-detail-actions' },
           active ? h(Button, { variant: 'secondary', onClick: onDeactivate }, t('action.deactivate')) : h(Button, { variant: 'primary', busy: busy === 'apply', onClick: onApply }, t('action.apply')),
           skin.origin?.kind === 'codex-import' && skin.wallpaper ? h(Button, { onClick: onRecolor, busy: busy === 'recolor' }, t('action.recolor')) : null,
+          codex?.video && !skin.video && onAttachVideo ? h(Button, { icon: 'play', onClick: onAttachVideo, busy: busy === 'attachVideo' }, t('action.attachVideo')) : null,
           h(Button, { icon: 'download', onClick: onExport, busy: busy === 'export' }, t('action.export')),
           // The skin in use cannot be deleted: the service refuses it anyway, so the
 // button would only ever produce an error. "Close" first, then delete.
@@ -1218,6 +1658,119 @@ window.__ModuleLoader__.load({
       if (Number.isNaN(date.getTime())) return '—'
       const pad = (number) => String(number).padStart(2, '0')
       return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+    }
+
+    function Switch({ id, checked, label, hint, onChange }) {
+      return h(
+        'label',
+        { className: 'dsks-switch', htmlFor: id },
+        h(
+          'span',
+          { className: 'dsks-switch-text' },
+          h('span', { className: 'dsks-switch-label' }, label),
+          hint ? h('span', { className: 'dsks-switch-hint' }, hint) : null,
+        ),
+        h('input', {
+          id,
+          className: 'dsks-switch-input',
+          type: 'checkbox',
+          checked: Boolean(checked),
+          onChange: (event) => onChange(event.target.checked),
+        }),
+        h('span', { className: 'dsks-switch-track', 'aria-hidden': 'true' }, h('span', { className: 'dsks-switch-thumb' })),
+      )
+    }
+
+    /**
+     * The dynamic-background sheet: autoplay, mute, and the play/pause shortcut.
+     *
+     * The shortcut is registered with the app's own command registry, so the
+     * keycaps here are read back from it (and follow a rebind in Settings →
+     * Shortcuts) instead of being a hard-coded string.
+     */
+    function VideoSettingsDialog({ t, runtime, onClose }) {
+      const [settings, setSettings] = useState(() => runtime.getVideoSettings())
+      const [keys, setKeys] = useState(() => runtime.getShortcutKeys())
+      const [, setRevision] = useState(0)
+      useEffect(() => runtime.subscribeShortcut(() => setKeys(runtime.getShortcutKeys())), [runtime])
+      const skin = runtime.getActiveSkin()
+      const playing = runtime.isVideoPlaying()
+      const update = (patch) => {
+        setSettings((current) => ({ ...current, ...patch }))
+        void runtime.updateVideoSettings(patch)
+      }
+      const toggle = () => {
+        runtime.toggleVideo()
+        setRevision((value) => value + 1)
+      }
+      const meta = skin?.video
+        ? t('video.meta', {
+            w: skin.video.width,
+            h: skin.video.height,
+            s: Math.round((skin.video.durationMs ?? 0) / 100) / 10,
+            mb: Math.round(((skin.video.bytes ?? 0) / 1024 / 1024) * 10) / 10,
+          })
+        : null
+      const state = !skin?.video
+        ? t('video.stateNone')
+        : playing
+          ? t('video.statePlaying')
+          : runtime.isVideoStarted?.()
+            ? t('video.statePaused')
+            : t('video.stateIdle')
+      return h(
+        Dialog,
+        {
+          t,
+          title: t('video.title'),
+          description: t('video.desc'),
+          onClose,
+          footer: [h(Button, { key: 'close', onClick: onClose }, t('action.close'))],
+        },
+        h(Switch, {
+          id: 'dsks-video-autoplay',
+          checked: settings.autoplay,
+          label: t('video.autoplay'),
+          hint: t('video.autoplayHint'),
+          onChange: (value) => update({ autoplay: value }),
+        }),
+        h(Switch, {
+          id: 'dsks-video-muted',
+          checked: settings.muted,
+          label: t('video.muted'),
+          hint: t('video.mutedHint'),
+          onChange: (value) => update({ muted: value }),
+        }),
+        h(
+          'div',
+          { className: 'dsks-shortcut' },
+          h(
+            'div',
+            { className: 'dsks-shortcut-text' },
+            h('span', { className: 'dsks-switch-label' }, t('video.shortcut')),
+            h('span', { className: 'dsks-switch-hint' }, t('video.shortcutHint')),
+          ),
+          h(
+            'span',
+            { className: 'dsks-keycaps' },
+            ...keys.map((key, index) =>
+              key === '+' ? h('span', { key: index, className: 'dsks-keycap-plus' }, '+') : h('kbd', { key: index, className: 'dsks-keycap' }, key),
+            ),
+          ),
+        ),
+        runtime.isShortcutRegistered() ? null : h('p', { className: 'dsks-hint' }, t('video.shortcutFallback')),
+        h(
+          'div',
+          { className: 'dsks-video-state' },
+          h(
+            'div',
+            { className: 'dsks-video-state-text' },
+            h('span', { className: 'dsks-switch-label' }, t('video.state')),
+            h('span', { className: 'dsks-switch-hint' }, meta ? `${state} · ${meta}` : state),
+          ),
+          skin?.video ? h(Button, { icon: playing ? 'pause' : 'play', onClick: toggle }, playing ? t('video.pause') : t('video.play')) : null,
+        ),
+      )
     }
 
     function ImportDialog({ t, busy, onClose, onPick, onZip, zipInput }) {
@@ -1617,6 +2170,25 @@ window.__ModuleLoader__.load({
 .dsks-design-panel strong{font-size:14px}
 .dsks-design-panel span{font-size:12px;opacity:.8}
 .dsks-design-note{margin:0;font-size:12px;color:var(--dsw-alias-label-secondary)}
+.dsks-video-layer{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.dsks-video-layer video{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .45s ease-out}
+.dsks-video-layer[data-ready] video{opacity:1}
+.dsks-video-veil{position:absolute;inset:0;display:block;pointer-events:none}
+.dsks-switch{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;cursor:pointer;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.dsks-switch-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.dsks-switch-label{font-size:13px;font-weight:500;color:var(--dsw-alias-label-primary)}
+.dsks-switch-hint{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary)}
+.dsks-switch-input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.dsks-switch-track{position:relative;flex:none;width:38px;height:22px;border-radius:999px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l2);transition:background-color .14s ease-out,border-color .14s ease-out}
+.dsks-switch-thumb{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--dsw-alias-label-secondary);transition:transform .14s ease-out,background-color .14s ease-out}
+.dsks-switch-input:checked + .dsks-switch-track{background:var(--dsw-alias-brand-primary);border-color:transparent}
+.dsks-switch-input:checked + .dsks-switch-track .dsks-switch-thumb{transform:translateX(16px);background:#fff}
+.dsks-switch-input:focus-visible + .dsks-switch-track{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.dsks-shortcut,.dsks-video-state{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.dsks-shortcut-text,.dsks-video-state-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.dsks-keycaps{display:inline-flex;align-items:center;gap:4px;flex:none}
+.dsks-keycap{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:24px;padding:0 7px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);font:inherit;font-size:11px;color:var(--dsw-alias-label-secondary)}
+.dsks-keycap-plus{border:none;background:transparent;color:var(--dsw-alias-label-tertiary);font-size:11px}
 `
 
     /* ------------------------------------------------------------------ */
@@ -1626,7 +2198,7 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots'],
       /** Test seam: the row and detail card are unreachable from a static render. */
-      __components: { SkinRow, SkinDetail, ImportDialog },
+      __components: { SkinRow, SkinDetail, ImportDialog, Switch, VideoSettingsDialog },
       apply(ctx) {
         const runtime = createRuntime(ctx)
         ctx.effect(() => runtime.start())

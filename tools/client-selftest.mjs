@@ -27,46 +27,101 @@ function check(name, condition, detail = '') {
 /* ---------------------------------------------------------------- DOM stub */
 
 const styleTags = []
+function matchesSelector(element, selector) {
+  if (selector.startsWith('.')) return String(element.className ?? '').split(/\s+/).includes(selector.slice(1))
+  return false
+}
+
 function createElement(tagName) {
+  const listeners = new Map()
   const element = {
     tagName: String(tagName).toUpperCase(),
     attributes: {},
-    style: { setProperty() {}, removeProperty() {}, getPropertyValue: () => '' },
+    children: [],
+    parent: null,
+    className: '',
+    style: { setProperty() {}, removeProperty() {}, getPropertyValue: () => '', objectPosition: '', background: '' },
     _text: '',
     isConnected: false,
+    paused: true,
+    muted: false,
+    src: '',
     setAttribute(name, value) {
       this.attributes[name] = String(value)
     },
     getAttribute(name) {
       return this.attributes[name] ?? null
     },
-    remove() {
-      this.isConnected = false
+    removeAttribute(name) {
+      delete this.attributes[name]
     },
+    addEventListener(type, listener) {
+      const list = listeners.get(type) ?? []
+      list.push(listener)
+      listeners.set(type, list)
+    },
+    emit(type) {
+      for (const listener of listeners.get(type) ?? []) listener({ type })
+    },
+    append(...nodes) {
+      for (const node of nodes) {
+        if (node === null || node === undefined) continue
+        node.parent = this
+        node.isConnected = true
+        this.children.push(node)
+      }
+    },
+    remove() {
+      if (this.parent) {
+        const index = this.parent.children.indexOf(this)
+        if (index >= 0) this.parent.children.splice(index, 1)
+      }
+      this.isConnected = false
+      this.parent = null
+    },
+    querySelector(selector) {
+      for (const child of this.children) {
+        if (matchesSelector(child, selector)) return child
+        const nested = child.querySelector?.(selector)
+        if (nested) return nested
+      }
+      return null
+    },
+    play() {
+      this.paused = false
+      this.emit('play')
+      return Promise.resolve()
+    },
+    pause() {
+      this.paused = true
+    },
+    load() {},
     get textContent() {
       return this._text
     },
     set textContent(value) {
       this._text = String(value)
     },
-    append() {},
   }
   return element
 }
 
+const body = createElement('body')
 globalThis.document = {
   head: {
+    children: styleTags,
     append(element) {
       element.isConnected = true
       styleTags.push(element)
     },
   },
-  body: { style: { setProperty() {}, removeProperty() {} }, setAttribute() {}, removeAttribute() {} },
+  body,
   createElement,
   querySelector: () => null,
   addEventListener() {},
   removeEventListener() {},
   documentElement: { style: {} },
+  visibilityState: 'visible',
 }
 globalThis.window = globalThis
 globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} })
@@ -124,6 +179,7 @@ const skin = {
   typography: { fontFamily: null },
   surface: { radius: 16, blur: 0, alpha: { canvas: 0.7, sidebar: 0.66, panel: 0.72, panelAlt: 0.68, overridden: false } },
   wallpaper: { url: '/skin/assets/skin.test/wallpaper?v=1', focusX: 0.3, focusY: 0.6, dim: 0.25 },
+  video: { url: '/skin/assets/skin.test/video?v=1', width: 1280, height: 720, durationMs: 4000, bytes: 5242880, codec: 'avc1' },
   origin: { kind: 'codex-import', codexId: 'studio.test' },
   codex: { tagline: 'tag', hasSafeCss: false },
   css: '',
@@ -133,6 +189,7 @@ const skin = {
 }
 
 let activeId = 'skin.test'
+let videoSettings = { autoplay: true, muted: true }
 
 const lightSkin = {
   id: 'skin.auto-light',
@@ -162,14 +219,19 @@ const lightSkin = {
   transparencyOverridden: false,
 }
 
-const snapshot = () => ({ ok: true, snapshot: { version: 1, activeId, themes: [skin, lightSkin], sources: [], dataDir: 'x', model: null, client: null } })
+const snapshot = () => ({ ok: true, snapshot: { version: 1, activeId, themes: [skin, lightSkin], sources: [], dataDir: 'x', model: null, client: null, video: { ...videoSettings } } })
 
 globalThis.fetch = async (url, options) => {
   const path = String(url)
   let payload
   if (path.includes('/skin/api/snapshot')) payload = snapshot()
   else if (path.includes('/skin/api/ping')) payload = { ok: true }
-  else if (path.includes('/skin/api/deactivate')) {
+  else if (path.includes('/skin/api/video-settings')) {
+    const patch = JSON.parse(options?.body ?? '{}')
+    if (typeof patch.autoplay === 'boolean') videoSettings.autoplay = patch.autoplay
+    if (typeof patch.muted === 'boolean') videoSettings.muted = patch.muted
+    payload = { ok: true, settings: { ...videoSettings }, snapshot: snapshot().snapshot }
+  } else if (path.includes('/skin/api/deactivate')) {
     activeId = null
     payload = snapshot()
   } else if (path.includes('/skin/api/apply')) {
@@ -279,6 +341,55 @@ check('stylesheet lifts #root above the layer', wallpaperTag?.textContent.includ
 const managerTag = styleTags.find((tag) => tag.getAttribute('data-plugin-css') === 'manager')
 check('injects manager styles', Boolean(managerTag) && managerTag.textContent.includes('.dsks-root'))
 
+console.log('dynamic background layer')
+{
+  const layer = document.body.children.find((child) => child.className === 'dsks-video-layer')
+  check('mounts a video layer for a video skin', Boolean(layer), JSON.stringify(document.body.children.map((child) => child.className)))
+  const element = layer?.children.find((child) => child.tagName === 'VIDEO')
+  check('points the video at the asset url', String(element?.src).includes('/skin/assets/skin.test/video'))
+  check('starts muted', element?.muted === true, String(element?.muted))
+  check('starts playing', element?.paused === false, String(element?.paused))
+  check('follows the wallpaper focus', element?.style.objectPosition === '30% 60%', String(element?.style.objectPosition))
+  const veil = layer?.children.find((child) => child.className === 'dsks-video-veil')
+  check('paints the shared veil', String(veil?.style.background).includes('0.7'), String(veil?.style.background))
+  check('the stylesheet owns the layer geometry', String(managerTag?.textContent).includes('.dsks-video-layer{position:fixed'))
+}
+
+console.log('dynamic background controls')
+{
+  const runtime = slotRegistrations[0].component({}).props.runtime
+  const layer = () => document.body.children.find((child) => child.className === 'dsks-video-layer')
+  const videoElement = () => layer()?.children.find((child) => child.tagName === 'VIDEO')
+  check('reports the video as playing', runtime.isVideoPlaying() === true)
+  runtime.toggleVideo()
+  check('the shortcut pauses playback', videoElement()?.paused === true)
+  check('a pause keeps the current frame mounted', Boolean(layer()))
+  runtime.toggleVideo()
+  check('the shortcut resumes playback', videoElement()?.paused === false)
+  await runtime.updateVideoSettings({ muted: false })
+  check('unmuting reaches the element', videoElement()?.muted === false)
+  await runtime.updateVideoSettings({ autoplay: false })
+  check('autoplay off removes the layer', !layer())
+  await runtime.updateVideoSettings({ autoplay: true })
+  check('autoplay on mounts it again', Boolean(layer()))
+
+  const VideoSettingsDialog = exportsModule.__components?.VideoSettingsDialog
+  check('video dialog is exported for testing', typeof VideoSettingsDialog === 'function')
+  if (typeof VideoSettingsDialog === 'function') {
+    const savedCursor = hookCursor
+    const savedStore = hookStore.slice()
+    hookCursor = 0
+    const dialog = VideoSettingsDialog({ t: (key) => key, runtime, onClose: () => {} })
+    hookCursor = savedCursor
+    hookStore.length = 0
+    hookStore.push(...savedStore)
+    const text = JSON.stringify(dialog)
+    check('dialog exposes autoplay and mute', text.includes('"label":"video.autoplay"') && text.includes('"label":"video.muted"'))
+    check('dialog shows the play/pause shortcut', text.includes('video.shortcut') && text.includes('Ctrl'), text.slice(0, 200))
+    check('dialog shows the current state', text.includes('video.state'))
+  }
+}
+
 console.log('transparency preview')
 {
   // Reach the live page component through the registered slot and use the
@@ -343,7 +454,7 @@ console.log('render walk (components execute without React DOM)')
   const text = renderedText.join(' ')
   check('page renders the title', text.includes('主题皮肤'), text.slice(0, 160))
   check('renders skin rows', seen.includes('SkinRow'))
-  check('renders the toolbar actions', text.includes('扫描本机主题') && text.includes('AI 设计'))
+  check('renders the toolbar actions', text.includes('扫描本机主题') && text.includes('AI 设计') && text.includes('动态主题设置'))
   check('renders the skin name', text.includes('Test Skin'))
   check('renders the row badge', text.includes('使用中') || text.includes('主题皮肤'))
 
@@ -362,6 +473,7 @@ console.log('render walk (components execute without React DOM)')
       onDelete: () => {},
       onExport: () => {},
       onRecolor: () => {},
+      onAttachVideo: () => {},
       onTransparency: () => {},
       onReset: () => {},
     }
@@ -383,6 +495,32 @@ console.log('render walk (components execute without React DOM)')
 
     // Only one row may be open: the page keeps a single selected id.
     check('row toggles through one callback', typeof handlers.onToggle === 'function')
+
+    // A skin imported before dynamic backgrounds existed: the pack records
+    // `codex.video`, but the document has no video yet.
+    const SkinDetail = exportsModule.__components?.SkinDetail
+    check('detail component is exported for testing', typeof SkinDetail === 'function')
+    if (typeof SkinDetail === 'function') {
+      const savedCursor = hookCursor
+      const savedStore = hookStore.slice()
+      hookCursor = 0
+      const legacy = SkinDetail({
+        skin: { ...skin, video: null, codex: { ...skin.codex, video: 'background.mp4' } },
+        active: false,
+        busy: null,
+        draftTransparency: null,
+        ...handlers,
+        onClose: () => {},
+        compact: true,
+        t: (key) => key,
+      })
+      hookCursor = savedCursor
+      hookStore.length = 0
+      hookStore.push(...savedStore)
+      const text = JSON.stringify(legacy)
+      check('a legacy skin explains the missing video', text.includes('video.missingHint'))
+      check('a legacy skin offers the attach action', text.includes('action.attachVideo'))
+    }
   }
   // The import dialog opens the OS picker; it must render before any path
   // exists, so a missing binding there would blank the settings page too.

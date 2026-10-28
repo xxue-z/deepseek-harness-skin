@@ -31,6 +31,12 @@ plugin_manager install_bundle  C:\path\to\deepseek-harness-skin
   界面会明确标注。
 - 卡片详情里可以调 **壁纸可见度**（0–100%，等价于 Codex 的 transparency），
   可以「按壁纸重新取色」（给没有 `colors` 的 preset 补配色）、导出 JSON、删除。
+- **动态主题设置**：页头按钮，弹窗里三行——自动播放、静音、播放/暂停快捷键。
+  快捷键走宿主自带的快捷键系统，**应用不在前台也能用**，并且会出现在
+  「设置 → 快捷键」里，可以自己改键位（弹窗里的键帽会自动跟着变）。
+- **补全动态背景**：动态壁纸上线之前导入的皮肤只留了 `codex.video` 元数据，
+  详情里会提示「原主题带 MP4」，按钮只重读 `background.mp4` 挂上去，
+  不动配色和透明度（重新扫描也行，但那会把整份文档按主题包重写）。
 
 对话里（`skin_theme` 工具）：
 
@@ -50,6 +56,13 @@ skin_theme {"action":"transparency","id":"skin.crimson-mecha-nova","transparency
 - **底色方案**：浅色/深色不是按主题里写的 `appearance` 选的，而是按面板/画布亮度算出来的
   （插件只换 alias token，其余表面沿用宿主内置调色板，选错就整片变黑）。
 - **壁纸**：插件自有 `<style data-plugin="@local/dsh-skin">` 注入 `body::before` 固定图层。
+- **动态壁纸**：Codex 主题里的 `background.mp4` 会被一起导入（≤16 MB、H.264/`avc1`、
+  单视频轨），由 `/skin/assets/<id>/video` 以支持 `Range` 的方式输出，客户端在
+  `#root` 之下挂一个固定 `<video>` 层。海报始终是底：视频 `loadeddata` 之后才盖上，
+  解码失败、自动播放被拒、系统「减少动态效果」、窗口隐藏都会退回海报或暂停，
+  不会黑屏。透明度的白色暗化层由海报和视频共用同一个数值，切换时不跳亮度。
+- **播放快捷键**：注册为宿主的 `skin.toggleVideo` 命令，默认 `Ctrl+Alt+P`
+  （macOS `⌘⌥P`）；没有快捷键服务时退回到窗口内监听同一个组合键。
 - **分层不透明度**：四类表面各有下限——画布/侧栏跟随"壁纸可见度"（默认 100%，保留 0.08/0.10 的
   一层底色压字），卡片 0.86，弹窗与浮动面板 0.95，输入框 0.90。同一层透明度会让设置面板变成
   "看穿对话"的玻璃窗，分层之后壁纸在画布和侧栏上照样透，叠在上面的面板则始终可读。
@@ -63,9 +76,10 @@ skin_theme {"action":"transparency","id":"skin.crimson-mecha-nova","transparency
 
 ```
 <DSH_HOME>/skin/
-  state.json                     # 当前皮肤 + 每个皮肤的透明度覆写
-  themes/<id>/theme.json         # 皮肤定义（配色、壁纸焦点、来源元数据）
-  themes/<id>/wallpaper.<ext>    # 壁纸原图
+  state.json                     # 当前皮肤、每个皮肤的透明度覆写、动态背景设置
+  themes/<id>/theme.json         # 皮肤定义（配色、壁纸焦点、视频元数据、来源元数据）
+  themes/<id>/wallpaper.<ext>    # 壁纸原图（必需，也是视频的海报帧）
+  themes/<id>/video.mp4          # 动态壁纸（可选）
 ```
 
 删除只会动这个目录；不会碰你的 Codex 主题原文件。
@@ -81,6 +95,7 @@ skin_theme {"action":"transparency","id":"skin.crimson-mecha-nova","transparency
 | `lib/palette.js` | 颜色解析、对比度修正、从文字/图片调色板推导整套配色 |
 | `lib/designer.js` | 提示词、模型调用、JSON 解析、离线回退 |
 | `lib/store.js` | 原子写入的皮肤库 |
+| `lib/mp4.js` | 有界 MP4 结构解析（品牌、轨道、编码、尺寸、时长），不解码 |
 | `lib/zip.js` | 最小 ZIP 读取器（stored + deflate，无第三方依赖） |
 | `lib/api.js` | `/skin/api/*` 与 `/skin/assets/*` |
 | `lib/tool.js` | `skin_theme` 工具定义 |
@@ -97,7 +112,9 @@ node tools/client-selftest.mjs    # Web：主题注册、壁纸样式、透明�
 
 ## 已知边界
 
-- **视频壁纸**（Codex 的 `background.mp4`）不播放，只在详情里保留元数据。
+- **视频壁纸的编码**：只接受 H.264（`avc1`）、8-bit、单视频轨、≤16 MB，分辨率上限
+  2560×1600，时长 0.2 秒–5 分钟。HEVC / AV1 / 分片 MP4 会在导入时被跳过（海报照常导入，
+  界面给出一条警告），而不是等到播放时才失败。
 - **Codex 的 `theme.css`** 只提取与 DOM 无关的部分（圆角、表面透明度、模糊、字体）；
   `[data-ds-part]` 选择器不会逐条翻译到 Harness DOM——那等于猜选择器，宁可少做。
 - **画布保底**：本应用把对话文字直接画在画布上（Codex 每条消息有独立卡片），

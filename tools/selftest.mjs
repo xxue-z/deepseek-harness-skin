@@ -5,7 +5,7 @@
  *
  *   node tools/selftest.mjs [codexThemesDir]
  */
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -16,6 +16,7 @@ import { createSkinHandler } from '../lib/api.js'
 import { contrastRatio, derivePalette, paletteFromText, parseColor } from '../lib/palette.js'
 import { readZip } from '../lib/zip.js'
 import { zipSync } from './zip-fixture.mjs'
+import { makeMp4 } from './mp4-fixture.mjs'
 
 let failures = 0
 function check(name, condition, detail = '') {
@@ -136,6 +137,99 @@ console.log('store + service + api')
   } else {
     console.log('  (skipped: no Codex theme available)')
   }
+  rmSync(dir, { recursive: true, force: true })
+}
+
+console.log('dynamic background')
+{
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-skin-video-'))
+  const store = new SkinStore(join(dir, 'skin'))
+  store.ensure()
+  const service = new SkinService({ store, config: { codexDirs: [] }, getLlm: () => undefined, getSelection: () => undefined })
+  const themeJson = (id, name) =>
+    JSON.stringify({
+      schemaVersion: 2,
+      id,
+      name,
+      appearance: 'dark',
+      image: 'background.jpg',
+      video: { file: 'background.mp4' },
+      colors: { background: '#101014', panel: '#191921', panelAlt: '#22222c', accent: '#ff5a7a', text: '#f4f4f8', muted: '#9a9aa8', line: 'rgba(255,255,255,.2)' },
+    })
+  const pack = join(dir, 'pack')
+  mkdirSync(pack, { recursive: true })
+  writeFileSync(join(pack, 'theme.json'), themeJson('studio.video-test', 'Video Test'))
+  writeFileSync(join(pack, 'background.jpg'), Buffer.alloc(2048, 7))
+  writeFileSync(join(pack, 'background.mp4'), makeMp4({ width: 1920, height: 1080, durationMs: 8000 }))
+  const imported = service.importPath(pack)
+  const snapshot = service.snapshot()
+  const skin = snapshot.themes.find((entry) => entry.id === imported.id)
+  check('import keeps the mp4', skin?.video?.width === 1920 && skin.video.height === 1080, JSON.stringify(skin?.video))
+  check('import records the duration', skin?.video?.durationMs === 8000)
+  check('store exposes a video path', store.videoPath(imported.id) !== null)
+  check('store types the video', store.videoType(imported.id) === 'video/mp4')
+
+  const server = createServer(createSkinHandler(service, { store, log: () => {} }))
+  await new Promise((done) => server.listen(0, '127.0.0.1', done))
+  const base = `http://127.0.0.1:${server.address().port}`
+  const full = await fetch(`${base}${skin.video.url}`)
+  check('video endpoint returns bytes', full.ok && (await full.arrayBuffer()).byteLength > 1024)
+  check('video endpoint types the stream', String(full.headers.get('content-type')).startsWith('video/mp4'))
+  check('video endpoint advertises ranges', full.headers.get('accept-ranges') === 'bytes', String(full.headers.get('accept-ranges')))
+  const ranged = await fetch(`${base}${skin.video.url}`, { headers: { range: 'bytes=0-99' } })
+  check('range request answers 206', ranged.status === 206, String(ranged.status))
+  check('range request returns 100 bytes', (await ranged.arrayBuffer()).byteLength === 100)
+  check('range response carries content-range', /^bytes 0-99\//.test(String(ranged.headers.get('content-range'))), String(ranged.headers.get('content-range')))
+  const suffix = await fetch(`${base}${skin.video.url}`, { headers: { range: 'bytes=-16' } })
+  check('suffix range answers 206', suffix.status === 206 && (await suffix.arrayBuffer()).byteLength === 16)
+  const unsatisfiable = await fetch(`${base}${skin.video.url}`, { headers: { range: 'bytes=999999-' } })
+  check('unsatisfiable range answers 416', unsatisfiable.status === 416, String(unsatisfiable.status))
+
+  const saved = service.setVideoSettings({ autoplay: false, muted: false })
+  check('video settings return the new values', saved.settings.autoplay === false && saved.settings.muted === false)
+  check('video settings are persisted', new SkinStore(join(dir, 'skin')).readState().video.muted === false)
+  const settingsApi = await fetch(`${base}/skin/api/video-settings`, { method: 'POST', body: JSON.stringify({ autoplay: true }) }).then((response) => response.json())
+  check('api accepts video settings', settingsApi.ok === true && settingsApi.snapshot.video.autoplay === true)
+  check('api keeps the untouched setting', settingsApi.snapshot.video.muted === false)
+
+  const badPack = join(dir, 'bad')
+  mkdirSync(badPack, { recursive: true })
+  writeFileSync(join(badPack, 'theme.json'), themeJson('studio.hevc-test', 'HEVC Test'))
+  writeFileSync(join(badPack, 'background.jpg'), Buffer.alloc(2048, 7))
+  writeFileSync(join(badPack, 'background.mp4'), makeMp4({ codec: 'hev1' }))
+  const badImport = service.importPath(badPack)
+  check('an unsupported codec degrades to the poster', badImport.warnings.some((warning) => /H\.264/.test(warning)), JSON.stringify(badImport.warnings))
+  check('an unsupported codec stores no video', service.snapshot().themes.find((entry) => entry.id === badImport.id)?.video === null)
+
+  // A skin imported before dynamic backgrounds existed: import a pack without
+  // the mp4, add the file afterwards, then retrofit it with refreshVideo.
+  const legacy = join(dir, 'legacy')
+  mkdirSync(legacy, { recursive: true })
+  writeFileSync(join(legacy, 'theme.json'), themeJson('studio.legacy-test', 'Legacy'))
+  writeFileSync(join(legacy, 'background.jpg'), Buffer.alloc(2048, 7))
+  const legacyImport = service.importPath(legacy)
+  const legacySkin = service.snapshot().themes.find((entry) => entry.id === legacyImport.id)
+  check('a pack without an mp4 imports as static', legacySkin.video === null)
+  service.setTransparency(legacyImport.id, 42)
+  writeFileSync(join(legacy, 'background.mp4'), makeMp4({ width: 1600, height: 900 }))
+  const refreshed = service.refreshVideo(legacyImport.id)
+  const refreshedSkin = refreshed.snapshot.themes.find((entry) => entry.id === legacyImport.id)
+  check('refreshVideo attaches the mp4', refreshed.status === 'attached' && refreshedSkin.video?.width === 1600, JSON.stringify(refreshedSkin.video))
+  check('refreshVideo keeps the transparency override', refreshedSkin.transparency === 42, String(refreshedSkin.transparency))
+  check('refreshVideo keeps the palette', JSON.stringify(refreshedSkin.colors) === JSON.stringify(legacySkin.colors))
+  check('refreshVideo is idempotent', service.refreshVideo(legacyImport.id).status === 'present')
+  check(
+    'refreshVideo explains a pack with no usable mp4',
+    (() => {
+      try {
+        service.refreshVideo(badImport.id)
+        return false
+      } catch (error) {
+        return /动态背景|background\.mp4/.test(error.message)
+      }
+    })(),
+  )
+  server.close()
   rmSync(dir, { recursive: true, force: true })
 }
 
