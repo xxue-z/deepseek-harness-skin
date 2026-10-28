@@ -629,22 +629,27 @@ window.__ModuleLoader__.load({
         }
       }
 
-      // A user picking a built-in appearance turns the skin off, the same way
-      // Codex treats "Follow theme". The boot window is ignored because the
-      // durable appearance preference lands shortly after our first apply.
+      // Re-apply the skin whenever an outsider writes a built-in preference
+      // over the active skin id. Agent-preset switches, model changes that
+      // reload the session, profile reloads, and the Settings -> Appearance
+      // picker all funnel through setTheme(light|dark|system). We want the
+      // skin to stay unless the user chooses "Close" from the skin manager,
+      // so we repair instead of deactivating. To let a genuine built-in
+      // choice through, click "Close" first.
+      let repairTimer = null
       function watchThemeChanges() {
         return ctx.on('theme/change', (next) => {
           if (mutating || !ready || !snapshot?.activeId) return
           if (Date.now() - readyAt < 4000) return
           if (next?.preference === snapshot.activeId) return
-          if (next?.preference === 'light' || next?.preference === 'dark' || next?.preference === 'system') {
-            const previous = snapshot.activeId
-            snapshot = { ...snapshot, activeId: null }
-            clearApplied()
-            emit()
-            api.deactivate().catch(() => {
-              if (snapshot) snapshot = { ...snapshot, activeId: previous }
-            })
+          if (['light', 'dark', 'system'].includes(next?.preference)) {
+            const activeSkin = snapshot.themes?.find((entry) => entry.id === snapshot.activeId)
+            if (!activeSkin) return
+            if (repairTimer !== null) return
+            repairTimer = setTimeout(() => {
+              repairTimer = null
+              applySkin(activeSkin)
+            }, 120)
           }
         })
       }
@@ -1171,10 +1176,14 @@ window.__ModuleLoader__.load({
     }
 
     function DesignDialog({ t, runtime, base, onClose, onDone }) {
+      const snapshot = runtime.getSnapshot()
+      const defaultModel = snapshot?.model ?? { provider: '', model: '' }
       const [description, setDescription] = useState('')
       const [image, setImage] = useState(null)
       const [palette, setPalette] = useState([])
       const [useBase, setUseBase] = useState(Boolean(base))
+      const [modelProvider, setModelProvider] = useState('')
+      const [modelModel, setModelModel] = useState('')
       const [busy, setBusy] = useState(false)
       const [error, setError] = useState(null)
       const [result, setResult] = useState(null)
@@ -1204,6 +1213,8 @@ window.__ModuleLoader__.load({
             palette,
             imageDataUrl: image,
             baseId: useBase && base ? base.id : null,
+            modelProvider: modelProvider.trim() || undefined,
+            modelModel: modelModel.trim() || undefined,
           })
           if (payload.snapshot) runtime.applySnapshot(payload.snapshot)
           setResult({ skin: payload.skin, warning: payload.warning, usedModel: payload.usedModel })
@@ -1280,6 +1291,23 @@ window.__ModuleLoader__.load({
                     h('span', null, `${t('design.base')}：${base.name}`),
                   )
                 : null,
+              h(
+                'label',
+                { className: 'dsks-checkbox' },
+                h('span', null, `${t('label.model')}：${defaultModel.provider}/${defaultModel.model}`),
+              ),
+              h('input', {
+                className: 'dsks-input',
+                value: modelProvider,
+                placeholder: defaultModel.provider,
+                onChange: (event) => setModelProvider(event.target.value),
+              }),
+              h('input', {
+                className: 'dsks-input',
+                value: modelModel,
+                placeholder: defaultModel.model,
+                onChange: (event) => setModelModel(event.target.value),
+              }),
               error ? h('p', { className: 'dsks-error' }, error) : null,
             ),
       )
