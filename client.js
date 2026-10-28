@@ -331,16 +331,17 @@ window.__ModuleLoader__.load({
     function wallpaperCss(skin, transparency) {
       const rules = []
       if (skin.wallpaper?.url) {
-        // The veil is neutral grey, never the theme's background colour: a
-        // tinted veil is what made wallpapers look washed out. Its strength is
-        // the complement of the visibility slider, and a theme's own declared
-        // --ds-theme-image-dim can darken it further.
+        // The veil is neutral and light, never the theme's background colour and
+// never black: a tinted veil washed photos out, and a black one turned
+// bright wallpapers muddy. Strength is the complement of the visibility
+// slider; a theme's own --ds-theme-image-dim can strengthen it further.
         const visibility = Number.isFinite(transparency) ? Math.max(0, Math.min(100, transparency)) : skin.transparency ?? 60
         const veil = (100 - visibility) / 100
         const declared = /--ds-theme-image-dim\s*:/i.test(skin.codex?.themeCss ?? skin.css ?? '')
         const extra = declared ? Math.max(0, Math.min(0.85, Number(skin.wallpaper.dim) || 0)) : 0
         const dim = Math.min(1, veil + extra)
-        const scrim = dim > 0 ? `linear-gradient(rgba(0, 0, 0, ${Math.round(dim * 1000) / 1000}), rgba(0, 0, 0, ${Math.round(dim * 1000) / 1000})), ` : ''
+        const alpha = Math.round(dim * 1000) / 1000
+        const scrim = dim > 0 ? `linear-gradient(rgba(255, 255, 255, ${alpha}), rgba(255, 255, 255, ${alpha})), ` : ''
         const x = Math.round((skin.wallpaper.focusX ?? 0.5) * 100)
         const y = Math.round((skin.wallpaper.focusY ?? 0.5) * 100)
         rules.push(
