@@ -124,7 +124,36 @@ const skin = {
 }
 
 let activeId = 'skin.test'
-const snapshot = () => ({ ok: true, snapshot: { version: 1, activeId, themes: [skin], sources: [], dataDir: 'x', model: null, client: null } })
+
+const lightSkin = {
+  id: 'skin.auto-light',
+  name: 'Auto Light',
+  description: '',
+  appearance: 'auto',
+  colors: {
+    background: '#f7f6f6',
+    panel: '#fefefe',
+    panelAlt: '#eaeae8',
+    accent: '#cd2316',
+    accentAlt: '#b01e13',
+    secondary: '#a1831f',
+    highlight: '#9a1a11',
+    text: '#1e1d1a',
+    muted: '#6a6968',
+    line: '#d4d3d3',
+  },
+  typography: { fontFamily: null },
+  surface: { radius: 16, blur: 0, alpha: { canvas: 0.7, sidebar: 0.7, panel: 0.7, panelAlt: 0.7, overridden: false } },
+  wallpaper: { url: '/skin/assets/skin.auto-light/wallpaper?v=1', focusX: 0.5, focusY: 0.5, dim: 0.18 },
+  origin: { kind: 'codex-import', codexId: 'lbxx' },
+  codex: null,
+  css: '',
+  createdAt: '2026-10-28T00:00:00.000Z',
+  transparency: 30,
+  transparencyOverridden: false,
+}
+
+const snapshot = () => ({ ok: true, snapshot: { version: 1, activeId, themes: [skin, lightSkin], sources: [], dataDir: 'x', model: null, client: null } })
 
 globalThis.fetch = async (url, options) => {
   const path = String(url)
@@ -217,10 +246,13 @@ await flush()
 check('injects the settings section slot', injectedSlots.includes('settings.section'), injectedSlots.join(','))
 check('registers the skin section', slotRegistrations[0]?.options?.id === 'skin', JSON.stringify(slotRegistrations[0]?.options))
 check('section label is localized', slotRegistrations[0]?.options?.label?.() === '主题皮肤')
-check('registers one theme', themeCalls.register.length === 1 && themeCalls.register[0].id === 'skin.test')
-check('registers dark color scheme', themeCalls.register[0]?.colorScheme === 'dark')
-check('tokens use rgba surfaces', String(themeCalls.register[0]?.tokens?.['--dsw-alias-bg-base']).startsWith('rgba(16, 20, 24'))
-check('text token is the theme text colour', themeCalls.register[0]?.tokens?.['--dsw-alias-label-primary'] === '#f2f6fa')
+check('registers every theme', themeCalls.register.length === 2 && themeCalls.register.some((entry) => entry.id === 'skin.test'))
+check('registers dark color scheme for a dark palette', themeCalls.register.find((entry) => entry.id === 'skin.test')?.colorScheme === 'dark')
+check('registers light scheme for an auto light palette', themeCalls.register.find((entry) => entry.id === 'skin.auto-light')?.colorScheme === 'light')
+const darkReg = themeCalls.register.find((entry) => entry.id === 'skin.test')
+check('tokens use rgba surfaces', String(darkReg?.tokens?.['--dsw-alias-bg-base']).startsWith('rgba(16, 20, 24'))
+check('composer token is translucent', String(darkReg?.tokens?.['--dsw-specific-input-major']).startsWith('rgba('), String(darkReg?.tokens?.['--dsw-specific-input-major']))
+check('text token is the theme text colour', darkReg?.tokens?.['--dsw-alias-label-primary'] === '#f2f6fa')
 check('activates the active skin', themeCalls.setTheme.includes('skin.test'))
 check('installs an alpha override layer', themeCalls.overrideTokens.length === 1 && themeCalls.overrideTokens[0].source === '@local/dsh-skin')
 const override = themeCalls.overrideTokens[0]?.tokens?.['--dsw-alias-bg-base']

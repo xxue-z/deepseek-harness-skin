@@ -240,6 +240,10 @@ window.__ModuleLoader__.load({
         '--dsw-alias-bg-layer-1': withAlpha(colors.panel, alpha.panel),
         '--dsw-alias-bg-layer-2': withAlpha(colors.panelAlt, alpha.panelAlt),
         '--dsw-alias-bg-overlay': withAlpha(colors.panelAlt, alpha.panelAlt),
+        // The composer card is the one surface Codex renders as glass; it reads
+        // `--dsw-specific-input-major`, which is outside the alias catalogue but
+        // is the exact token the conversation plugin paints it with.
+        '--dsw-specific-input-major': withAlpha(colors.panelAlt, Math.min(1, alpha.panelAlt + 0.08)),
         '--dsw-alias-border-l1': colors.line,
         '--dsw-alias-border-l2': colors.line,
         '--dsw-alias-label-primary': colors.text,
@@ -263,12 +267,35 @@ window.__ModuleLoader__.load({
         '--dsw-alias-bg-layer-1': value(colors.panel, alpha.panel),
         '--dsw-alias-bg-layer-2': value(colors.panelAlt, alpha.panelAlt),
         '--dsw-alias-bg-overlay': value(colors.panelAlt, alpha.panelAlt),
+        '--dsw-specific-input-major': value(colors.panelAlt, Math.min(1, alpha.panelAlt + 0.08)),
       }
     }
 
+    /**
+     * Which base palette the skin sits on.
+     *
+     * Only the alias tokens are replaced, so every other surface (menus, code
+     * blocks, inline code, tool cards, hover fills) comes from the built-in
+     * light or dark palette. The skin's own surfaces therefore decide: pick the
+     * scheme whose built-ins match them, or a light wallpaper skin ends up with
+     * black inputs. `appearance` is advisory here — an `auto` theme carries no
+     * scheme at all, and a mislabelled one must still render correctly.
+     */
     function colorSchemeFor(skin) {
-      if (skin.appearance === 'light') return 'light'
-      return 'dark'
+      const panel = relativeLuminance(skin.colors?.panel)
+      const canvas = relativeLuminance(skin.colors?.background)
+      const surface = Number.isFinite(panel) ? panel * 0.65 + (Number.isFinite(canvas) ? canvas * 0.35 : panel * 0.35) : 0
+      return surface > 0.42 ? 'light' : 'dark'
+    }
+
+    function relativeLuminance(color) {
+      const parsed = parseColor(color)
+      if (!parsed) return Number.NaN
+      const channel = (value) => {
+        const unit = value / 255
+        return unit <= 0.03928 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * channel(parsed.r) + 0.7152 * channel(parsed.g) + 0.0722 * channel(parsed.b)
     }
 
     const GENERIC_FONTS = /^(ui-|system-ui|sans-serif|serif|monospace|inherit|-apple-system|blinkmacsystemfont|helvetica|arial|"helvetica neue"|"segoe ui"|"pingfang sc"|"microsoft yahei")/i
@@ -553,12 +580,14 @@ window.__ModuleLoader__.load({
           try {
             const loaded = await load()
             const themed = loaded?.themes?.length ?? 0
+            const activeSkin = loaded?.themes?.find((entry) => entry.id === loaded?.activeId)
             api
               .pingStatus({
                 slot: 'settings.section',
                 activeId: loaded?.activeId ?? null,
                 themeCount: themed,
-                version: '1.0.0',
+                version: '1.0.1',
+                scheme: activeSkin ? colorSchemeFor(activeSkin) : null,
               })
               .catch(() => {})
           } catch {

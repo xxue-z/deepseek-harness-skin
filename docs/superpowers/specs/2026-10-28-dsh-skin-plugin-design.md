@@ -206,3 +206,11 @@ DSH 主题以 alias token 表达（`--dsw-alias-*`，见 `Theme` 检查器）：
 7. **输出 schema 不能用联合类型**。`ToolOutputDefinition.schema` 的 `type` 只接受
    单值，写成 `['string','null']` 会让整个注册静默失败（工具不出现且无报错）。
    改为 `text`/`activeId`/`ids` 三个普通字段、缺省用空串表示。
+8. **底色方案由调色板亮度决定，不由 `appearance` 决定**。插件只替换 14 个 alias
+   token，其余表面（菜单、代码块、行内代码、工具卡、hover 填充）全部沿用宿主内置的
+   浅色或深色方案。若把浅色主题注册成 `dark`，输入框、消息体、行内代码会全部变成
+   黑色块——第一版正是这个 bug（`appearance: "auto"` 的「蜡笔小新」被当作深色）。
+   现在 `colorScheme = 面板/画布亮度加权 > 0.42 ? light : dark`，`appearance` 仅用于展示。
+9. **输入框补一个非目录内 token**。会话输入卡读的是 `--dsw-specific-input-major`
+   （不在 `Theme` 检查器列出的 14 个 alias 里），补成半透明 `panelAlt` 才像 Codex
+   那样是玻璃卡片，而不是实心块。
