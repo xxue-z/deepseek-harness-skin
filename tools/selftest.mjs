@@ -9,7 +9,7 @@ import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { convertCodexTheme, findThemeRoot } from '../lib/convert.js'
+import { authoredTransparency, convertCodexTheme, findThemeRoot } from '../lib/convert.js'
 import { SkinStore } from '../lib/store.js'
 import { SkinService } from '../lib/service.js'
 import { createSkinHandler } from '../lib/api.js'
@@ -62,6 +62,8 @@ console.log('convert')
     check(`${entry.name}: wallpaper binary`, wallpaper === null || wallpaper.bytes.byteLength > 1000)
   }
   check('converted at least one theme', converted > 0, String(converted))
+  check('a plain colour has no authored alpha', authoredTransparency('#101d20') === 100)
+  check('an rgba panel becomes visibility', authoredTransparency('rgba(16, 29, 32, 0.4)') === 60)
 }
 
 console.log('zip')
@@ -105,6 +107,10 @@ console.log('store + service + api')
     const withTransparency = service.setTransparency(imported.id, 55)
     check('transparency override', withTransparency.snapshot.themes.find((skin) => skin.id === imported.id).transparency === 55)
     check('wallpaper file exists', store.wallpaperPath(imported.id) !== null)
+    const floored = service.resolveAlpha({ surface: { alpha: { authored: false, canvas: 0.7, sidebar: 0.7, panel: 0.7, panelAlt: 0.7 } } }, undefined)
+    check('un-authored surfaces follow the 100% default', floored.sidebar === 0.1 && floored.canvas === 0.08, JSON.stringify(floored))
+    const authored = service.resolveAlpha({ surface: { alpha: { authored: true, canvas: 0, sidebar: 0.5, panel: 0.8, panelAlt: 0.7 } } }, undefined)
+    check('authored surfaces keep their alpha', authored.sidebar === 0.5 && authored.canvas === 0.08, JSON.stringify(authored))
 
     const server = createServer(createSkinHandler(service, { store, log: () => {} }))
     await new Promise((done) => server.listen(0, '127.0.0.1', done))

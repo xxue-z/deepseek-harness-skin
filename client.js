@@ -37,6 +37,7 @@ window.__ModuleLoader__.load({
         'action.delete': '删除',
         'action.export': '导出 JSON',
         'action.cancel': '取消',
+        'action.default': '恢复默认',
         'action.close': '关闭',
         'action.generate': '生成主题',
         'action.recolor': '按壁纸重新取色',
@@ -105,6 +106,7 @@ window.__ModuleLoader__.load({
         'action.delete': 'Delete',
         'action.export': 'Export JSON',
         'action.cancel': 'Cancel',
+        'action.default': 'Use default',
         'action.close': 'Close',
         'action.generate': 'Generate',
         'action.recolor': 'Recolour from wallpaper',
@@ -227,7 +229,7 @@ window.__ModuleLoader__.load({
      * role keeps a floor here. `transparency` still means "how much wallpaper
      * shows through the chrome".
      */
-    const ALPHA_FLOORS = { canvas: 0.18, sidebar: 0.26, card: 0.86, dialog: 0.95, composer: 0.9 }
+    const ALPHA_FLOORS = { canvas: 0.08, sidebar: 0.1, card: 0.86, dialog: 0.95, composer: 0.9 }
 
     function withFloors(alpha) {
       const value = alpha ?? {}
@@ -236,10 +238,10 @@ window.__ModuleLoader__.load({
         return typeof raw === 'number' && Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : fallback
       }
       return {
-        canvas: Math.max(ALPHA_FLOORS.canvas, pick('canvas', 0.7)),
-        sidebar: Math.max(ALPHA_FLOORS.sidebar, pick('sidebar', 0.7)),
-        panel: Math.max(ALPHA_FLOORS.card, pick('panel', 0.7)),
-        panelAlt: Math.max(ALPHA_FLOORS.dialog, pick('panelAlt', 0.7)),
+        canvas: Math.max(ALPHA_FLOORS.canvas, pick('canvas', 0)),
+        sidebar: Math.max(ALPHA_FLOORS.sidebar, pick('sidebar', 0)),
+        panel: Math.max(ALPHA_FLOORS.card, pick('panel', 0)),
+        panelAlt: Math.max(ALPHA_FLOORS.dialog, pick('panelAlt', 0)),
       }
     }
 
@@ -887,6 +889,9 @@ window.__ModuleLoader__.load({
         }
       }
 
+      const onResetTransparency = (skin) =>
+        run('reset', () => api.transparency(skin.id, null), t('notice.saved'))
+
       const onRecolor = (skin) => {
         const palette = dominantColorsFromUrl(skin.wallpaper?.url)
         run('recolor', async () => api.recolor(skin.id, await palette), t('notice.saved'))
@@ -972,6 +977,7 @@ window.__ModuleLoader__.load({
               onExport: () => onExport(selected.id),
               onRecolor: () => onRecolor(selected),
               onTransparency: (value) => onTransparencyInput(selected, value),
+              onReset: () => onResetTransparency(selected),
               onClose: () => setSelectedId(null),
             })
           : null,
@@ -1042,7 +1048,7 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function SkinDetail({ skin, active, t, busy, draftTransparency, onApply, onDeactivate, onDelete, onExport, onRecolor, onTransparency, onClose }) {
+    function SkinDetail({ skin, active, t, busy, draftTransparency, onApply, onDeactivate, onDelete, onExport, onRecolor, onTransparency, onReset, onClose }) {
       const transparency = draftTransparency ?? skin.transparency
       const codex = skin.codex
       return h(
@@ -1098,7 +1104,14 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { className: 'dsks-transparency' },
-          h('label', { className: 'dsks-transparency-label', htmlFor: `dsks-t-${skin.id}` }, `${t('label.transparency')} · ${Math.round(transparency)}%`),
+          h(
+            'div',
+            { className: 'dsks-transparency-head' },
+            h('label', { className: 'dsks-transparency-label', htmlFor: `dsks-t-${skin.id}` }, `${t('label.transparency')} · ${Math.round(transparency)}%`),
+            skin.transparencyOverridden && onReset
+              ? h('button', { type: 'button', className: 'dsks-link', onClick: onReset }, t('action.default'))
+              : null,
+          ),
           h('input', {
             id: `dsks-t-${skin.id}`,
             type: 'range',
@@ -1422,6 +1435,7 @@ window.__ModuleLoader__.load({
 .dsks-palette-chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--dsw-alias-label-secondary)}
 .dsks-palette-dot{width:10px;height:10px;border-radius:3px;border:1px solid var(--dsw-alias-border-l2)}
 .dsks-transparency{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px}
+.dsks-transparency-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .dsks-transparency-label{font-size:12px;font-weight:500}
 .dsks-range{width:100%;accent-color:var(--dsw-alias-brand-primary);cursor:pointer}
 .dsks-hint{margin:0;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary)}
