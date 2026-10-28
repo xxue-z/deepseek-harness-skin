@@ -707,6 +707,7 @@ window.__ModuleLoader__.load({
       folder: 'M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z',
       palette: 'M12 3a9 9 0 1 0 0 18c1.4 0 2-0.9 2-1.8 0-0.8-0.6-1.4-0.6-2.2 0-0.9 0.7-1.5 1.7-1.5H17a4 4 0 0 0 4-4c0-4.7-4-8.5-9-8.5zM7.5 10.5h.01M10 7.5h.01M14 7.5h.01M16.5 10.5h.01',
       image: 'M4 5h16v14H4zM4 15l4.5-4.5 3.5 3.5 3-3L20 15M15 9.5h.01',
+      chevron: 'M8 10l4 4 4-4',
     }
 
     function Icon({ name, size = 16 }) {
@@ -794,29 +795,8 @@ window.__ModuleLoader__.load({
       const [notice, setNotice] = useState(null)
       const [dialog, setDialog] = useState(null)
       const [draftTransparency, setDraftTransparency] = useState(null)
-      const [hover, setHover] = useState(null)
-      const hoverTimer = useRef(null)
       const fileInput = useRef(null)
       const commitTimer = useRef(null)
-
-      // Hover is debounced on leave so moving the pointer from a card into the
-      // floating card does not dismiss it mid-travel.
-      const onHover = (id, element) => {
-        if (hoverTimer.current) clearTimeout(hoverTimer.current)
-        setHover({ id, anchor: element })
-      }
-      const onHoverEnd = (id) => {
-        if (hoverTimer.current) clearTimeout(hoverTimer.current)
-        hoverTimer.current = setTimeout(() => {
-          setHover((current) => (current?.id === id ? null : current))
-        }, 160)
-      }
-      useEffect(
-        () => () => {
-          if (hoverTimer.current) clearTimeout(hoverTimer.current)
-        },
-        [],
-      )
 
       useEffect(() => {
         const unsubscribe = runtime.subscribe((next) => {
@@ -996,23 +976,6 @@ window.__ModuleLoader__.load({
                 : null,
             )
           : null,
-        selected
-          ? h(SkinDetail, {
-              skin: selected,
-              active: selected.id === activeId,
-              t,
-              busy,
-              draftTransparency: draftTransparency?.id === selected.id ? draftTransparency.value : null,
-              onApply: () => onApply(selected.id),
-              onDeactivate,
-              onDelete: () => setDialog('delete'),
-              onExport: () => onExport(selected.id),
-              onRecolor: () => onRecolor(selected),
-              onTransparency: (value) => onTransparencyInput(selected, value),
-              onReset: () => onResetTransparency(selected),
-              onClose: () => setSelectedId(null),
-            })
-          : null,
         themes.length === 0
           ? h(
               'div',
@@ -1023,18 +986,24 @@ window.__ModuleLoader__.load({
             )
           : h(
               'div',
-              { className: 'dsks-grid' },
+              { className: 'dsks-list' },
               ...themes.map((skin) =>
-                h(SkinCard, {
+                h(SkinRow, {
                   key: skin.id,
                   skin,
                   active: skin.id === activeId,
-                  selected: skin.id === selectedId,
+                  open: skin.id === selectedId,
                   t,
-                  onSelect: () => setSelectedId(skin.id),
+                  busy,
+                  draftTransparency: draftTransparency?.id === skin.id ? draftTransparency.value : null,
+                  onToggle: () => setSelectedId((current) => (current === skin.id ? null : skin.id)),
                   onApply: () => onApply(skin.id),
-                  onHover,
-                  onHoverEnd,
+                  onDeactivate,
+                  onDelete: () => setDialog('delete'),
+                  onExport: () => onExport(skin.id),
+                  onRecolor: () => onRecolor(skin),
+                  onTransparency: (value) => onTransparencyInput(skin, value),
+                  onReset: () => onResetTransparency(skin),
                 }),
               ),
             ),
@@ -1064,37 +1033,6 @@ window.__ModuleLoader__.load({
               },
             })
           : null,
-        hover
-          ? h(HoverPreview, {
-              skin: themes.find((skin) => skin.id === hover.id) ?? null,
-              anchor: hover.anchor,
-              onEnter: (id) => {
-                if (hoverTimer.current) clearTimeout(hoverTimer.current)
-                setHover((current) => (current?.id === id ? current : { ...current, id }))
-              },
-              onLeave: onHoverEnd,
-              detailProps: (() => {
-                const skin = themes.find((entry) => entry.id === hover.id)
-                if (!skin) return null
-                return {
-                  skin,
-                  active: skin.id === activeId,
-                  t,
-                  busy,
-                  draftTransparency: draftTransparency?.id === skin.id ? draftTransparency.value : null,
-                  onApply: () => onApply(skin.id),
-                  onDeactivate,
-                  onDelete: () => setDialog('delete'),
-                  onExport: () => onExport(skin.id),
-                  onRecolor: () => onRecolor(skin),
-                  onTransparency: (value) => onTransparencyInput(skin, value),
-                  onReset: () => onResetTransparency(skin),
-                  onClose: () => setHover(null),
-                  compact: true,
-                }
-              })(),
-            })
-          : null,
       )
     }
 
@@ -1104,93 +1042,64 @@ window.__ModuleLoader__.load({
     }
     const shortenPath = shortensPath
 
-    function SkinCard({ skin, active, selected, t, onSelect, onApply, onHover, onHoverEnd }) {
+    /**
+     * One skin as a full-width row. Clicking the row toggles an inline detail
+     * card directly beneath it; the page keeps a single open row, so opening
+     * one collapses the previous one.
+     */
+    function SkinRow({ skin, active, open, t, busy, draftTransparency, onToggle, onApply, onDeactivate, onDelete, onExport, onRecolor, onTransparency, onReset }) {
       return h(
         'div',
-        {
-          className: 'dsks-card',
-          'data-active': active ? '' : undefined,
-          'data-selected': selected ? '' : undefined,
-          onMouseEnter: (event) => onHover(skin.id, event.currentTarget),
-          onMouseLeave: () => onHoverEnd(skin.id),
-          onFocus: (event) => onHover(skin.id, event.currentTarget),
-          onBlur: () => onHoverEnd(skin.id),
-        },
+        { className: 'dsks-row-wrap', 'data-open': open ? '' : undefined, 'data-active': active ? '' : undefined },
         h(
           'button',
-          { type: 'button', className: 'dsks-card-main', onClick: onSelect, 'aria-label': skin.name },
-          h('span', { className: 'dsks-thumb', 'data-empty': skin.wallpaper ? undefined : '' }, skin.wallpaper ? h('img', { src: skin.wallpaper.url, alt: '', loading: 'lazy' }) : h(Icon, { name: 'image', size: 22 })),
+          {
+            type: 'button',
+            className: 'dsks-row',
+            onClick: onToggle,
+            'aria-expanded': open,
+            'aria-label': skin.name,
+          },
+          h('span', { className: 'dsks-row-thumb', 'data-empty': skin.wallpaper ? undefined : '' }, skin.wallpaper ? h('img', { src: skin.wallpaper.url, alt: '', loading: 'lazy' }) : h(Icon, { name: 'image', size: 18 })),
           h(
             'span',
-            { className: 'dsks-card-text' },
-            h('span', { className: 'dsks-card-name' }, skin.name),
+            { className: 'dsks-row-text' },
+            h('span', { className: 'dsks-row-name' }, skin.name),
             h(
               'span',
-              { className: 'dsks-card-meta' },
+              { className: 'dsks-row-meta' },
               t(`appearance.${skin.appearance}`) ?? skin.appearance,
               ' · ',
               t(`origin.${skin.origin?.kind ?? 'manual'}`) ?? skin.origin?.kind,
+              skin.description ? ` · ${skin.description}` : '',
             ),
-            h('span', { className: 'dsks-swatches' }, ...[skin.colors.accent, skin.colors.accentAlt, skin.colors.secondary, skin.colors.panel, skin.colors.background].map((color, index) => h('span', { key: index, className: 'dsks-swatch', style: { background: color } }))),
           ),
+          h('span', { className: 'dsks-swatches dsks-row-swatches' }, ...[skin.colors.accent, skin.colors.accentAlt, skin.colors.secondary, skin.colors.panel, skin.colors.background].map((color, index) => h('span', { key: index, className: 'dsks-swatch', style: { background: color } }))),
+          active ? h('span', { className: 'dsks-pill' }, h(Icon, { name: 'check', size: 12 }), t('action.applied')) : null,
+          h('span', { className: 'dsks-row-chevron', 'data-open': open ? '' : undefined }, h(Icon, { name: 'chevron' })),
         ),
-        h(
-          'div',
-          { className: 'dsks-card-foot' },
-          active
-            ? h('span', { className: 'dsks-pill' }, h(Icon, { name: 'check', size: 12 }), t('action.applied'))
-            : h('button', { type: 'button', className: 'dsks-link', onClick: onApply }, t('action.apply')),
-        ),
-      )
-    }
-
-    /**
-     * Floating detail card anchored beside the hovered skin.
-     *
-     * Rendered through a fixed-position element measured from the hovered
-     * card, so it escapes the settings scroller and never pushes the grid
-     * around. Placement flips to the left of the card when the right side
-     * would overflow, and clamps vertically into the viewport.
-     */
-    function HoverPreview({ skin, anchor, detailProps, onEnter, onLeave }) {
-      const [rect, setRect] = useState(null)
-      useEffect(() => {
-        if (!anchor) return undefined
-        const measure = () => {
-          const box = anchor.getBoundingClientRect()
-          const width = 320
-          const height = 260
-          const gap = 10
-          const roomRight = window.innerWidth - box.right
-          const left = roomRight >= width + gap ? box.right + gap : box.left - width - gap
-          const top = Math.max(8, Math.min(box.top, window.innerHeight - height - 8))
-          setRect({ left: Math.max(8, Math.min(left, window.innerWidth - width - 8)), top, width })
-        }
-        measure()
-        window.addEventListener('resize', measure)
-        window.addEventListener('scroll', measure, true)
-        return () => {
-          window.removeEventListener('resize', measure)
-          window.removeEventListener('scroll', measure, true)
-        }
-      }, [anchor])
-      if (!skin || !rect) return null
-      return h(
-        'div',
-        {
-          className: 'dsks-hover',
-          style: { left: rect.left, top: rect.top, width: rect.width },
-          onMouseEnter: () => onEnter(skin.id),
-          onMouseLeave: () => onLeave(skin.id),
-          role: 'presentation',
-        },
-        h(
-          'div',
-          { className: 'dsks-hover-head' },
-          h('strong', { className: 'dsks-hover-title' }, skin.name),
-          detailProps.active ? h('span', { className: 'dsks-pill' }, h(Icon, { name: 'check', size: 12 }), detailProps.t('action.applied')) : null,
-        ),
-        h(SkinDetail, { ...detailProps, compact: true }),
+        open
+          ? h(
+              'div',
+              { className: 'dsks-row-detail' },
+              h(SkinDetail, {
+                skin,
+                active,
+                t,
+                busy,
+                draftTransparency,
+                onApply,
+                onDeactivate,
+                onDelete,
+                onExport,
+                onRecolor,
+                onTransparency,
+                onReset,
+                onClose: onToggle,
+                compact: true,
+              }),
+            )
+          : null,
       )
     }
 
@@ -1566,23 +1475,25 @@ window.__ModuleLoader__.load({
 .dsks-source{font-family:var(--dsw-font-markdown-code-font-family,ui-monospace,monospace);font-size:11px;padding:2px 6px;border-radius:6px;background:var(--dsw-alias-markdown-code-block,var(--dsw-alias-bg-layer-2))}
 .dsks-source[data-missing]{opacity:.55;text-decoration:line-through}
 .dsks-model{margin-left:auto}
-.dsks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:12px}
-.dsks-card{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);overflow:hidden;transition:border-color .12s ease-out,box-shadow .12s ease-out}
-.dsks-card:hover{border-color:var(--dsw-alias-border-l3)}
-.dsks-card[data-selected]{border-color:var(--dsw-alias-brand-primary);box-shadow:0 0 0 1px var(--dsw-alias-brand-primary)}
-.dsks-card[data-active]{border-color:color-mix(in srgb,var(--dsw-alias-brand-primary) 55%,var(--dsw-alias-border-l2))}
-.dsks-card-main{display:block;padding:0;border:none;background:transparent;text-align:left;cursor:pointer;font:inherit;color:inherit}
-.dsks-card-main:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
-.dsks-thumb{display:block;position:relative;aspect-ratio:16/10;background:var(--dsw-alias-bg-layer-2);overflow:hidden}
-.dsks-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.dsks-thumb[data-empty]{display:flex;align-items:center;justify-content:center;color:var(--dsw-alias-label-tertiary)}
-.dsks-card-text{display:flex;flex-direction:column;gap:3px;padding:8px 10px 4px}
-.dsks-card-name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dsks-card-meta{font-size:11px;color:var(--dsw-alias-label-tertiary)}
+.dsks-list{display:flex;flex-direction:column;gap:6px}
+.dsks-row-wrap{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);overflow:hidden;transition:border-color .12s ease-out}
+.dsks-row-wrap:hover{border-color:var(--dsw-alias-border-l3)}
+.dsks-row-wrap[data-open]{border-color:var(--dsw-alias-brand-primary)}
+.dsks-row-wrap[data-active]{border-left:2px solid var(--dsw-alias-brand-primary)}
+.dsks-row{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:none;background:transparent;text-align:left;cursor:pointer;font:inherit;color:inherit}
+.dsks-row:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
+.dsks-row-thumb{flex:none;width:52px;height:34px;border-radius:6px;overflow:hidden;background:var(--dsw-alias-bg-layer-2);display:flex;align-items:center;justify-content:center;color:var(--dsw-alias-label-tertiary)}
+.dsks-row-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.dsks-row-text{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.dsks-row-name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsks-row-meta{font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsks-row-swatches{flex:none;margin-top:0}
+.dsks-row-chevron{flex:none;display:inline-flex;color:var(--dsw-alias-label-tertiary);transition:transform .14s ease-out}
+.dsks-row-chevron[data-open]{transform:rotate(180deg)}
+.dsks-row-detail{padding:2px 12px 12px;border-top:1px solid var(--dsw-alias-border-l1);margin-top:2px;padding-top:12px}
 .dsks-swatches{display:flex;gap:3px;margin-top:2px}
 .dsks-swatch{width:12px;height:12px;border-radius:50%;border:1px solid var(--dsw-alias-border-l2);display:inline-block}
 .dsks-swatches-lg .dsks-swatch{width:20px;height:20px;border-radius:6px}
-.dsks-card-foot{display:flex;align-items:center;justify-content:flex-end;padding:4px 10px 10px}
 .dsks-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-brand-primary) 14%,transparent);color:var(--dsw-alias-brand-primary);font-size:11px}
 .dsks-link{border:none;background:transparent;color:var(--dsw-alias-brand-primary);font:inherit;font-size:12px;cursor:pointer;padding:2px 4px;border-radius:6px}
 .dsks-link:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2))}
@@ -1593,11 +1504,6 @@ window.__ModuleLoader__.load({
 .dsks-error{color:var(--dsw-alias-state-error-primary);font-size:13px;margin:0}
 .dsks-detail{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px}
 .dsks-detail[data-compact]{border:0;border-radius:0;background:transparent;padding:0;gap:10px}
-.dsks-hover{position:fixed;z-index:1200;max-height:calc(100vh - 24px);overflow:auto;display:flex;flex-direction:column;gap:8px;padding:12px 14px 14px;border:1px solid var(--dsw-alias-border-l2);border-radius:14px;background:var(--dsw-alias-bg-layer-2);box-shadow:0 18px 48px rgba(0,0,0,.3);backdrop-filter:blur(18px) saturate(1.1);animation:dsks-hover-in .12s ease-out}
-@keyframes dsks-hover-in{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
-@media (prefers-reduced-motion:reduce){.dsks-hover{animation:none}}
-.dsks-hover-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--dsw-alias-border-l1)}
-.dsks-hover-title{font-size:13px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsks-detail-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .dsks-detail-title{margin:0;font-size:14px;font-weight:600}
 .dsks-detail-body{display:grid;grid-template-columns:minmax(140px,220px) minmax(0,1fr);gap:14px}
@@ -1650,8 +1556,8 @@ window.__ModuleLoader__.load({
 
     return {
       inject: ['slots'],
-      /** Test seam: the hover card is unreachable from a static render. */
-      __components: { HoverPreview, SkinDetail, SkinCard },
+      /** Test seam: the row and detail card are unreachable from a static render. */
+      __components: { SkinRow, SkinDetail },
       apply(ctx) {
         const runtime = createRuntime(ctx)
         ctx.effect(() => runtime.start())

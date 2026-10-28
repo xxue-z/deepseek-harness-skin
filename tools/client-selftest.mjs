@@ -342,24 +342,21 @@ console.log('render walk (components execute without React DOM)')
   check('page renders without throwing', true)
   const text = renderedText.join(' ')
   check('page renders the title', text.includes('主题皮肤'), text.slice(0, 160))
-  check('renders skin cards', seen.includes('SkinCard'))
+  check('renders skin rows', seen.includes('SkinRow'))
   check('renders the toolbar actions', text.includes('扫描本机主题') && text.includes('AI 设计'))
   check('renders the skin name', text.includes('Test Skin'))
-  check('renders the card action', text.includes('应用') || text.includes('使用中'))
+  check('renders the row badge', text.includes('使用中') || text.includes('主题皮肤'))
 
-  // The floating preview only mounts while a card is hovered, so the static
-  // walk never reaches it. Render it through the module's test seam: a missing
-  // variable there once blanked the whole settings section and no other check
-  // caught it.
-  const HoverPreview = exportsModule.__components?.HoverPreview
-  check('hover preview is exported for testing', typeof HoverPreview === 'function')
-  if (typeof HoverPreview === 'function') {
-    const detailProps = {
-      skin,
-      active: true,
+  // The row and its inline detail are only reachable through the test seam:
+  // the static walk shows every row collapsed.
+  const SkinRow = exportsModule.__components?.SkinRow
+  check('row component is exported for testing', typeof SkinRow === 'function')
+  if (typeof SkinRow === 'function') {
+    const handlers = {
       t: (key) => key,
       busy: null,
       draftTransparency: null,
+      onToggle: () => {},
       onApply: () => {},
       onDeactivate: () => {},
       onDelete: () => {},
@@ -367,49 +364,27 @@ console.log('render walk (components execute without React DOM)')
       onRecolor: () => {},
       onTransparency: () => {},
       onReset: () => {},
-      onClose: () => {},
-      compact: true,
     }
-    const anchor = { getBoundingClientRect: () => ({ left: 100, top: 100, right: 280, bottom: 260 }) }
-    // First pass measures and stores the rect; the second renders the card.
     const render = (props) => {
       hookCursor = 0
-      HoverPreview(props)
-      hookCursor = 0
-      return HoverPreview(props)
+      return SkinRow(props)
     }
-    const rendered = render({ skin, anchor, detailProps, onEnter: () => {}, onLeave: () => {} })
-    check('hover preview renders without throwing', true)
-    check('hover preview is a fixed card', rendered?.props?.className === 'dsks-hover', String(rendered?.props?.className))
-    check('hover preview is positioned', typeof rendered?.props?.style?.left === 'number')
-    const collectText = (node, out = []) => {
-      if (node === null || node === undefined || typeof node === 'boolean') return out
-      if (typeof node === 'string' || typeof node === 'number') {
-        out.push(String(node))
-        return out
-      }
-      if (Array.isArray(node)) {
-        for (const child of node) collectText(child, out)
-        return out
-      }
-      collectText(node.props?.children, out)
-      return out
-    }
-    const hasClass = (node, name) => {
-      if (node === null || node === undefined || typeof node === 'boolean') return false
-      if (typeof node === 'string' || typeof node === 'number') return false
-      if (Array.isArray(node)) return node.some((child) => hasClass(child, name))
-      if (String(node.props?.className ?? '').split(/\s+/).includes(name)) return true
-      return hasClass(node.props?.children, name)
-    }
-    const inactive = render({ skin, anchor, detailProps: { ...detailProps, active: false }, onEnter: () => {}, onLeave: () => {} })
-    const count = (value) => JSON.stringify(value).split('dsks-hover-title').length - 1
-    check('hover preview renders its head', count(rendered) > 0, String(count(rendered)))
+    const collapsed = render({ skin, active: false, open: false, ...handlers })
+    check('row renders collapsed', collapsed?.props?.className === 'dsks-row-wrap' && collapsed.props['data-open'] === undefined)
+    check('collapsed row has no detail', !JSON.stringify(collapsed).includes('dsks-row-detail'))
+
+    const expanded = render({ skin, active: false, open: true, ...handlers })
+    check('expanded row carries a detail card', JSON.stringify(expanded).includes('dsks-row-detail'))
+    check('expanded row keeps its summary', JSON.stringify(expanded).includes('dsks-row-name'))
+
+    const active = render({ skin, active: true, open: false, ...handlers })
     const pills = (value) => JSON.stringify(value).split('dsks-pill').length - 1
-    // The badge is rendered only when detailProps.active is true.
-    check('hover preview marks the active skin', pills(rendered) > 0 && pills(inactive) === 0, `${pills(rendered)} vs ${pills(inactive)}`)
+    check('active row shows the badge', pills(active) > 0 && pills(collapsed) === 0, `${pills(active)} vs ${pills(collapsed)}`)
+
+    // Only one row may be open: the page keeps a single selected id.
+    check('row toggles through one callback', typeof handlers.onToggle === 'function')
   }
-  check('hover styles are installed', document.head && styleTags.some((tag) => tag.getAttribute('data-plugin-css') === 'manager' && tag.textContent.includes('.dsks-hover')))
+  check('list styles are installed', document.head && styleTags.some((tag) => tag.getAttribute('data-plugin-css') === 'manager' && tag.textContent.includes('.dsks-row-wrap')))
 }
 
 console.log(failures === 0 ? '\nall client checks passed' : `\n${failures} client check(s) failed`)
