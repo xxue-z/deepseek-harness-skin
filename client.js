@@ -229,7 +229,7 @@ window.__ModuleLoader__.load({
      * role keeps a floor here. `transparency` still means "how much wallpaper
      * shows through the chrome".
      */
-    const ALPHA_FLOORS = { canvas: 0.08, sidebar: 0.1, card: 0.86, dialog: 0.95, composer: 0.9 }
+    const ALPHA_FLOORS = { canvas: 0, sidebar: 0.02, card: 0.86, dialog: 0.95, composer: 0.9 }
 
     function withFloors(alpha) {
       const value = alpha ?? {}
@@ -238,7 +238,9 @@ window.__ModuleLoader__.load({
         return typeof raw === 'number' && Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : fallback
       }
       return {
-        canvas: Math.max(ALPHA_FLOORS.canvas, pick('canvas', 0)),
+        // The canvas is always clear: the wallpaper layer is the backdrop and
+        // a coloured canvas fill is what tinted every photo.
+        canvas: 0,
         sidebar: Math.max(ALPHA_FLOORS.sidebar, pick('sidebar', 0)),
         panel: Math.max(ALPHA_FLOORS.card, pick('panel', 0)),
         panelAlt: Math.max(ALPHA_FLOORS.dialog, pick('panelAlt', 0)),
@@ -246,8 +248,12 @@ window.__ModuleLoader__.load({
     }
 
     function alphaSet(skin, transparency) {
+      // Transparency is "how much wallpaper shows", so a higher number means a
+      // lower alpha. The canvas stays fully transparent at every setting so it
+      // never tints the artwork; the slider instead drives a neutral grey veil
+      // in the wallpaper layer (see wallpaperCss) plus the sidebar fill.
       const base = 1 - Math.max(0, Math.min(100, transparency)) / 100
-      return withFloors({ canvas: base, sidebar: base, panel: base, panelAlt: base })
+      return withFloors({ canvas: 0, sidebar: base, panel: base, panelAlt: base })
     }
 
     /* ------------------------------------------------------------------ */
@@ -322,11 +328,19 @@ window.__ModuleLoader__.load({
 
     const GENERIC_FONTS = /^(ui-|system-ui|sans-serif|serif|monospace|inherit|-apple-system|blinkmacsystemfont|helvetica|arial|"helvetica neue"|"segoe ui"|"pingfang sc"|"microsoft yahei")/i
 
-    function wallpaperCss(skin) {
+    function wallpaperCss(skin, transparency) {
       const rules = []
       if (skin.wallpaper?.url) {
-        const dim = Math.max(0, Math.min(0.85, Number(skin.wallpaper.dim) || 0))
-        const scrim = dim > 0 ? `linear-gradient(${withAlpha(skin.colors.background, dim)}, ${withAlpha(skin.colors.background, dim)}), ` : ''
+        // The veil is neutral grey, never the theme's background colour: a
+        // tinted veil is what made wallpapers look washed out. Its strength is
+        // the complement of the visibility slider, and a theme's own declared
+        // --ds-theme-image-dim can darken it further.
+        const visibility = Number.isFinite(transparency) ? Math.max(0, Math.min(100, transparency)) : skin.transparency ?? 60
+        const veil = (100 - visibility) / 100
+        const declared = /--ds-theme-image-dim\s*:/i.test(skin.codex?.themeCss ?? skin.css ?? '')
+        const extra = declared ? Math.max(0, Math.min(0.85, Number(skin.wallpaper.dim) || 0)) : 0
+        const dim = Math.min(1, veil + extra)
+        const scrim = dim > 0 ? `linear-gradient(rgba(0, 0, 0, ${Math.round(dim * 1000) / 1000}), rgba(0, 0, 0, ${Math.round(dim * 1000) / 1000})), ` : ''
         const x = Math.round((skin.wallpaper.focusX ?? 0.5) * 100)
         const y = Math.round((skin.wallpaper.focusY ?? 0.5) * 100)
         rules.push(
@@ -425,9 +439,9 @@ window.__ModuleLoader__.load({
         return element
       }
 
-      function writeWallpaper(skin) {
+      function writeWallpaper(skin, transparency) {
         const element = ensureStyleElement()
-        element.textContent = skin ? wallpaperCss(skin) : ''
+        element.textContent = skin ? wallpaperCss(skin, transparency) : ''
       }
 
       function register(skin) {
@@ -507,7 +521,7 @@ window.__ModuleLoader__.load({
             if (!registered.has(skin.id)) register(skin)
             service.setTheme(skin.id)
           }
-          writeWallpaper(skin)
+          writeWallpaper(skin, skin.transparency)
           const resolved = skin.surface?.alpha
           if (service?.overrideTokens && resolved) {
             if (overrideDisposer) overrideDisposer()
@@ -556,7 +570,7 @@ window.__ModuleLoader__.load({
         const active = skins.find((skin) => skin.id === snapshot.activeId)
         if (active && appliedId === id) {
           const service = theme()
-          writeWallpaper(active)
+          writeWallpaper(active, value)
           if (service?.overrideTokens) {
             if (overrideDisposer) overrideDisposer()
             overrideDisposer = service.overrideTokens(PLUGIN_ID, alphaTokens(active, value))
