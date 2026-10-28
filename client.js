@@ -1188,7 +1188,7 @@ window.__ModuleLoader__.load({
           'div',
           { className: 'dsks-hover-head' },
           h('strong', { className: 'dsks-hover-title' }, skin.name),
-          active ? null : h('button', { type: 'button', className: 'dsks-link', onClick: detailProps.onApply }, detailProps.t('action.apply')),
+          detailProps.active ? h('span', { className: 'dsks-pill' }, h(Icon, { name: 'check', size: 12 }), detailProps.t('action.applied')) : null,
         ),
         h(SkinDetail, { ...detailProps, compact: true }),
       )
@@ -1650,6 +1650,8 @@ window.__ModuleLoader__.load({
 
     return {
       inject: ['slots'],
+      /** Test seam: the hover card is unreachable from a static render. */
+      __components: { HoverPreview, SkinDetail, SkinCard },
       apply(ctx) {
         const runtime = createRuntime(ctx)
         ctx.effect(() => runtime.start())

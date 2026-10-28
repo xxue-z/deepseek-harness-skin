@@ -83,7 +83,16 @@ const ReactStub = {
     if (!(index in hookStore)) hookStore[index] = typeof initial === 'function' ? initial() : initial
     return [hookStore[index], (next) => { hookStore[index] = next }]
   },
-  useEffect: () => {},
+  // Effects run inline so a component that measures in useEffect (the hover
+// card does) still produces its final tree in this harness.
+  useEffect: (effect) => {
+    hookCursor++
+    try {
+      effect()
+    } catch {
+      /* cleanup closures are not tracked here */
+    }
+  },
   useRef: (initial) => {
     const index = hookCursor++
     if (!(index in hookStore)) hookStore[index] = { current: initial }
@@ -338,9 +347,68 @@ console.log('render walk (components execute without React DOM)')
   check('renders the skin name', text.includes('Test Skin'))
   check('renders the card action', text.includes('应用') || text.includes('使用中'))
 
-  // The floating preview is position:fixed and only mounts while a card is
-  // hovered, which a static walk cannot reproduce. Its inline styles are the
-  // contract worth guarding, so assert the rule that drives it exists.
+  // The floating preview only mounts while a card is hovered, so the static
+  // walk never reaches it. Render it through the module's test seam: a missing
+  // variable there once blanked the whole settings section and no other check
+  // caught it.
+  const HoverPreview = exportsModule.__components?.HoverPreview
+  check('hover preview is exported for testing', typeof HoverPreview === 'function')
+  if (typeof HoverPreview === 'function') {
+    const detailProps = {
+      skin,
+      active: true,
+      t: (key) => key,
+      busy: null,
+      draftTransparency: null,
+      onApply: () => {},
+      onDeactivate: () => {},
+      onDelete: () => {},
+      onExport: () => {},
+      onRecolor: () => {},
+      onTransparency: () => {},
+      onReset: () => {},
+      onClose: () => {},
+      compact: true,
+    }
+    const anchor = { getBoundingClientRect: () => ({ left: 100, top: 100, right: 280, bottom: 260 }) }
+    // First pass measures and stores the rect; the second renders the card.
+    const render = (props) => {
+      hookCursor = 0
+      HoverPreview(props)
+      hookCursor = 0
+      return HoverPreview(props)
+    }
+    const rendered = render({ skin, anchor, detailProps, onEnter: () => {}, onLeave: () => {} })
+    check('hover preview renders without throwing', true)
+    check('hover preview is a fixed card', rendered?.props?.className === 'dsks-hover', String(rendered?.props?.className))
+    check('hover preview is positioned', typeof rendered?.props?.style?.left === 'number')
+    const collectText = (node, out = []) => {
+      if (node === null || node === undefined || typeof node === 'boolean') return out
+      if (typeof node === 'string' || typeof node === 'number') {
+        out.push(String(node))
+        return out
+      }
+      if (Array.isArray(node)) {
+        for (const child of node) collectText(child, out)
+        return out
+      }
+      collectText(node.props?.children, out)
+      return out
+    }
+    const hasClass = (node, name) => {
+      if (node === null || node === undefined || typeof node === 'boolean') return false
+      if (typeof node === 'string' || typeof node === 'number') return false
+      if (Array.isArray(node)) return node.some((child) => hasClass(child, name))
+      if (String(node.props?.className ?? '').split(/\s+/).includes(name)) return true
+      return hasClass(node.props?.children, name)
+    }
+    const inactive = render({ skin, anchor, detailProps: { ...detailProps, active: false }, onEnter: () => {}, onLeave: () => {} })
+    const count = (value) => JSON.stringify(value).split('dsks-hover-title').length - 1
+    check('hover preview renders its head', count(rendered) > 0, String(count(rendered)))
+    const pills = (value) => JSON.stringify(value).split('dsks-pill').length - 1
+    // The badge is rendered only when detailProps.active is true.
+    check('hover preview marks the active skin', pills(rendered) > 0 && pills(inactive) === 0, `${pills(rendered)} vs ${pills(inactive)}`)
+  }
   check('hover styles are installed', document.head && styleTags.some((tag) => tag.getAttribute('data-plugin-css') === 'manager' && tag.textContent.includes('.dsks-hover')))
 }
 
