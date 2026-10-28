@@ -794,8 +794,29 @@ window.__ModuleLoader__.load({
       const [notice, setNotice] = useState(null)
       const [dialog, setDialog] = useState(null)
       const [draftTransparency, setDraftTransparency] = useState(null)
+      const [hover, setHover] = useState(null)
+      const hoverTimer = useRef(null)
       const fileInput = useRef(null)
       const commitTimer = useRef(null)
+
+      // Hover is debounced on leave so moving the pointer from a card into the
+      // floating card does not dismiss it mid-travel.
+      const onHover = (id, element) => {
+        if (hoverTimer.current) clearTimeout(hoverTimer.current)
+        setHover({ id, anchor: element })
+      }
+      const onHoverEnd = (id) => {
+        if (hoverTimer.current) clearTimeout(hoverTimer.current)
+        hoverTimer.current = setTimeout(() => {
+          setHover((current) => (current?.id === id ? null : current))
+        }, 160)
+      }
+      useEffect(
+        () => () => {
+          if (hoverTimer.current) clearTimeout(hoverTimer.current)
+        },
+        [],
+      )
 
       useEffect(() => {
         const unsubscribe = runtime.subscribe((next) => {
@@ -1000,7 +1021,23 @@ window.__ModuleLoader__.load({
               h('p', { className: 'dsks-empty-title' }, t('state.empty')),
               h('p', { className: 'dsks-empty-hint' }, t('state.emptyHint')),
             )
-          : h('div', { className: 'dsks-grid' }, ...themes.map((skin) => h(SkinCard, { key: skin.id, skin, active: skin.id === activeId, selected: skin.id === selectedId, t, onSelect: () => setSelectedId(skin.id), onApply: () => onApply(skin.id) }))),
+          : h(
+              'div',
+              { className: 'dsks-grid' },
+              ...themes.map((skin) =>
+                h(SkinCard, {
+                  key: skin.id,
+                  skin,
+                  active: skin.id === activeId,
+                  selected: skin.id === selectedId,
+                  t,
+                  onSelect: () => setSelectedId(skin.id),
+                  onApply: () => onApply(skin.id),
+                  onHover,
+                  onHoverEnd,
+                }),
+              ),
+            ),
         dialog === 'delete' && selected
           ? h(Dialog, {
               t,
@@ -1027,6 +1064,37 @@ window.__ModuleLoader__.load({
               },
             })
           : null,
+        hover
+          ? h(HoverPreview, {
+              skin: themes.find((skin) => skin.id === hover.id) ?? null,
+              anchor: hover.anchor,
+              onEnter: (id) => {
+                if (hoverTimer.current) clearTimeout(hoverTimer.current)
+                setHover((current) => (current?.id === id ? current : { ...current, id }))
+              },
+              onLeave: onHoverEnd,
+              detailProps: (() => {
+                const skin = themes.find((entry) => entry.id === hover.id)
+                if (!skin) return null
+                return {
+                  skin,
+                  active: skin.id === activeId,
+                  t,
+                  busy,
+                  draftTransparency: draftTransparency?.id === skin.id ? draftTransparency.value : null,
+                  onApply: () => onApply(skin.id),
+                  onDeactivate,
+                  onDelete: () => setDialog('delete'),
+                  onExport: () => onExport(skin.id),
+                  onRecolor: () => onRecolor(skin),
+                  onTransparency: (value) => onTransparencyInput(skin, value),
+                  onReset: () => onResetTransparency(skin),
+                  onClose: () => setHover(null),
+                  compact: true,
+                }
+              })(),
+            })
+          : null,
       )
     }
 
@@ -1036,10 +1104,18 @@ window.__ModuleLoader__.load({
     }
     const shortenPath = shortensPath
 
-    function SkinCard({ skin, active, selected, t, onSelect, onApply }) {
+    function SkinCard({ skin, active, selected, t, onSelect, onApply, onHover, onHoverEnd }) {
       return h(
         'div',
-        { className: 'dsks-card', 'data-active': active ? '' : undefined, 'data-selected': selected ? '' : undefined },
+        {
+          className: 'dsks-card',
+          'data-active': active ? '' : undefined,
+          'data-selected': selected ? '' : undefined,
+          onMouseEnter: (event) => onHover(skin.id, event.currentTarget),
+          onMouseLeave: () => onHoverEnd(skin.id),
+          onFocus: (event) => onHover(skin.id, event.currentTarget),
+          onBlur: () => onHoverEnd(skin.id),
+        },
         h(
           'button',
           { type: 'button', className: 'dsks-card-main', onClick: onSelect, 'aria-label': skin.name },
@@ -1068,18 +1144,71 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function SkinDetail({ skin, active, t, busy, draftTransparency, onApply, onDeactivate, onDelete, onExport, onRecolor, onTransparency, onReset, onClose }) {
-      const transparency = draftTransparency ?? skin.transparency
-      const codex = skin.codex
+    /**
+     * Floating detail card anchored beside the hovered skin.
+     *
+     * Rendered through a fixed-position element measured from the hovered
+     * card, so it escapes the settings scroller and never pushes the grid
+     * around. Placement flips to the left of the card when the right side
+     * would overflow, and clamps vertically into the viewport.
+     */
+    function HoverPreview({ skin, anchor, detailProps, onEnter, onLeave }) {
+      const [rect, setRect] = useState(null)
+      useEffect(() => {
+        if (!anchor) return undefined
+        const measure = () => {
+          const box = anchor.getBoundingClientRect()
+          const width = 320
+          const height = 260
+          const gap = 10
+          const roomRight = window.innerWidth - box.right
+          const left = roomRight >= width + gap ? box.right + gap : box.left - width - gap
+          const top = Math.max(8, Math.min(box.top, window.innerHeight - height - 8))
+          setRect({ left: Math.max(8, Math.min(left, window.innerWidth - width - 8)), top, width })
+        }
+        measure()
+        window.addEventListener('resize', measure)
+        window.addEventListener('scroll', measure, true)
+        return () => {
+          window.removeEventListener('resize', measure)
+          window.removeEventListener('scroll', measure, true)
+        }
+      }, [anchor])
+      if (!skin || !rect) return null
       return h(
-        'section',
-        { className: 'dsks-detail' },
+        'div',
+        {
+          className: 'dsks-hover',
+          style: { left: rect.left, top: rect.top, width: rect.width },
+          onMouseEnter: () => onEnter(skin.id),
+          onMouseLeave: () => onLeave(skin.id),
+          role: 'presentation',
+        },
         h(
           'div',
-          { className: 'dsks-detail-head' },
-          h('h3', { className: 'dsks-detail-title' }, skin.name),
-          h('button', { type: 'button', className: 'dsks-icon-button', onClick: onClose, 'aria-label': t('action.close') }, h(Icon, { name: 'close' })),
+          { className: 'dsks-hover-head' },
+          h('strong', { className: 'dsks-hover-title' }, skin.name),
+          active ? null : h('button', { type: 'button', className: 'dsks-link', onClick: detailProps.onApply }, detailProps.t('action.apply')),
         ),
+        h(SkinDetail, { ...detailProps, compact: true }),
+      )
+    }
+
+    function SkinDetail({ skin, active, t, busy, draftTransparency, onApply, onDeactivate, onDelete, onExport, onRecolor, onTransparency, onReset, onClose, compact = false }) {
+      const transparency = draftTransparency ?? skin.transparency
+      const codex = skin.codex
+      const head = compact
+        ? null
+        : h(
+            'div',
+            { className: 'dsks-detail-head' },
+            h('h3', { className: 'dsks-detail-title' }, skin.name),
+            h('button', { type: 'button', className: 'dsks-icon-button', onClick: onClose, 'aria-label': t('action.close') }, h(Icon, { name: 'close' })),
+          )
+      return h(
+        'section',
+        { className: 'dsks-detail', 'data-compact': compact ? '' : undefined },
+        head,
         h(
           'div',
           { className: 'dsks-detail-body' },
@@ -1463,6 +1592,12 @@ window.__ModuleLoader__.load({
 .dsks-loading{display:flex;align-items:center;gap:8px;color:var(--dsw-alias-label-secondary);padding:12px 0}
 .dsks-error{color:var(--dsw-alias-state-error-primary);font-size:13px;margin:0}
 .dsks-detail{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px}
+.dsks-detail[data-compact]{border:0;border-radius:0;background:transparent;padding:0;gap:10px}
+.dsks-hover{position:fixed;z-index:1200;max-height:calc(100vh - 24px);overflow:auto;display:flex;flex-direction:column;gap:8px;padding:12px 14px 14px;border:1px solid var(--dsw-alias-border-l2);border-radius:14px;background:var(--dsw-alias-bg-layer-2);box-shadow:0 18px 48px rgba(0,0,0,.3);backdrop-filter:blur(18px) saturate(1.1);animation:dsks-hover-in .12s ease-out}
+@keyframes dsks-hover-in{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.dsks-hover{animation:none}}
+.dsks-hover-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.dsks-hover-title{font-size:13px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsks-detail-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .dsks-detail-title{margin:0;font-size:14px;font-weight:600}
 .dsks-detail-body{display:grid;grid-template-columns:minmax(140px,220px) minmax(0,1fr);gap:14px}

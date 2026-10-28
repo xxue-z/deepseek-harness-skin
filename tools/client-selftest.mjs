@@ -338,8 +338,10 @@ console.log('render walk (components execute without React DOM)')
   check('renders the skin name', text.includes('Test Skin'))
   check('renders the card action', text.includes('应用') || text.includes('使用中'))
 
-  const Design = element.type ? null : null
-  void Design
+  // The floating preview is position:fixed and only mounts while a card is
+  // hovered, which a static walk cannot reproduce. Its inline styles are the
+  // contract worth guarding, so assert the rule that drives it exists.
+  check('hover styles are installed', document.head && styleTags.some((tag) => tag.getAttribute('data-plugin-css') === 'manager' && tag.textContent.includes('.dsks-hover')))
 }
 
 console.log(failures === 0 ? '\nall client checks passed' : `\n${failures} client check(s) failed`)
