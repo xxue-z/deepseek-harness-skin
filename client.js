@@ -1150,7 +1150,9 @@ window.__ModuleLoader__.load({
           active ? h(Button, { variant: 'secondary', onClick: onDeactivate }, t('action.deactivate')) : h(Button, { variant: 'primary', busy: busy === 'apply', onClick: onApply }, t('action.apply')),
           skin.origin?.kind === 'codex-import' && skin.wallpaper ? h(Button, { onClick: onRecolor, busy: busy === 'recolor' }, t('action.recolor')) : null,
           h(Button, { icon: 'download', onClick: onExport, busy: busy === 'export' }, t('action.export')),
-          h(Button, { variant: 'danger', icon: 'trash', onClick: onDelete }, t('action.delete')),
+          // The skin in use cannot be deleted: the service refuses it anyway, so the
+// button would only ever produce an error. "Close" first, then delete.
+          active ? null : h(Button, { variant: 'danger', icon: 'trash', onClick: onDelete }, t('action.delete')),
         ),
       )
     }
