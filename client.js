@@ -30,6 +30,9 @@ window.__ModuleLoader__.load({
         'action.scan': '扫描本机主题',
         'action.importZip': '导入 ZIP',
         'action.importPath': '从文件夹导入',
+        'action.openFolder': '打开主题文件夹',
+        'notice.folderOpened': '已打开主题文件夹',
+        'notice.folderFailed': '无法打开文件夹，路径已复制：',
         'action.design': 'AI 设计',
         'action.apply': '应用',
         'action.applied': '使用中',
@@ -99,6 +102,9 @@ window.__ModuleLoader__.load({
         'action.scan': 'Scan this machine',
         'action.importZip': 'Import ZIP',
         'action.importPath': 'Import folder',
+        'action.openFolder': 'Open theme folder',
+        'notice.folderOpened': 'Theme folder opened',
+        'notice.folderFailed': 'Could not open it; the path was copied: ',
         'action.design': 'AI design',
         'action.apply': 'Apply',
         'action.applied': 'In use',
@@ -385,6 +391,7 @@ window.__ModuleLoader__.load({
       ping: () => request('ping', { method: 'POST', body: '{}' }),
       pingStatus: (status) => request('ping', { method: 'POST', body: JSON.stringify(status) }),
       scan: () => request('scan', { method: 'POST', body: '{}' }),
+      revealSources: () => request('reveal-sources', { method: 'POST', body: '{}' }),
       importPath: (path) => request('import-path', { method: 'POST', body: JSON.stringify({ path }) }),
       importZip: (name, data) => request('import-zip', { method: 'POST', body: JSON.stringify({ name, data }) }),
       apply: (id) => request('apply', { method: 'POST', body: JSON.stringify({ id }) }),
@@ -852,6 +859,16 @@ window.__ModuleLoader__.load({
           },
         )
 
+      const onRevealSources = () =>
+        run('reveal', () => api.revealSources(), (payload) => {
+          // A headless host cannot show a window; hand the path over instead.
+          if (payload?.opened?.opened === false) {
+            navigator.clipboard?.writeText(payload.opened.path ?? '').catch(() => {})
+            return `${t('notice.folderFailed')}${payload.opened.path ?? ''}`
+          }
+          return t('notice.folderOpened')
+        })
+
       const onApply = (id) =>
         run('apply', () => api.apply(id), t('notice.applied'))
 
@@ -959,18 +976,11 @@ window.__ModuleLoader__.load({
         }),
         h(Notice, { notice, onDismiss: () => setNotice(null) }),
         error && !notice ? h('p', { className: 'dsks-error' }, error) : null,
-        snapshot.sources.length > 0
+        snapshot.sources.length > 0 || snapshot.model
           ? h(
               'div',
               { className: 'dsks-sources' },
-              h('span', { className: 'dsks-sources-label' }, `${t('label.sources')}：`),
-              ...snapshot.sources.map((source) =>
-                h(
-                  'code',
-                  { key: source.path, className: 'dsks-source', title: source.path, 'data-missing': source.exists ? undefined : '' },
-                  `${shortenPath(source.path)}${source.exists ? ` (${source.count})` : ' —'}`,
-                ),
-              ),
+              h(Button, { icon: 'folder', onClick: onRevealSources, busy: busy === 'reveal' }, t('action.openFolder')),
               snapshot.model
                 ? h('span', { className: 'dsks-model' }, `${t('label.model')}：${snapshot.model.provider}/${snapshot.model.model}`)
                 : null,
@@ -1035,12 +1045,6 @@ window.__ModuleLoader__.load({
           : null,
       )
     }
-
-    function shortensPath(path, max = 46) {
-      const value = String(path)
-      return value.length > max ? `…${value.slice(-max + 1)}` : value
-    }
-    const shortenPath = shortensPath
 
     /**
      * One skin as a full-width row. Clicking the row toggles an inline detail
@@ -1471,9 +1475,7 @@ window.__ModuleLoader__.load({
 .dsks-notice-success{background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 12%,transparent);color:var(--dsw-alias-state-success-primary)}
 .dsks-notice-error{background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 12%,transparent);color:var(--dsw-alias-state-error-primary)}
 .dsks-notice-warning{background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 14%,transparent);color:var(--dsw-alias-state-warn-primary)}
-.dsks-sources{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--dsw-alias-label-tertiary)}
-.dsks-source{font-family:var(--dsw-font-markdown-code-font-family,ui-monospace,monospace);font-size:11px;padding:2px 6px;border-radius:6px;background:var(--dsw-alias-markdown-code-block,var(--dsw-alias-bg-layer-2))}
-.dsks-source[data-missing]{opacity:.55;text-decoration:line-through}
+.dsks-sources{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px}
 .dsks-model{margin-left:auto}
 .dsks-list{display:flex;flex-direction:column;gap:6px}
 .dsks-row-wrap{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);overflow:hidden;transition:border-color .12s ease-out}
