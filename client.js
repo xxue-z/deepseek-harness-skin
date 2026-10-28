@@ -28,8 +28,7 @@ window.__ModuleLoader__.load({
         'section.desc': '把 Codex Dream Skin 主题包转换成应用皮肤，或按描述生成。',
         'action.refresh': '刷新',
         'action.scan': '扫描本机主题',
-        'action.importZip': '导入 ZIP',
-        'action.importPath': '从文件夹导入',
+        'action.import': '导入',
         'action.openFolder': '打开皮肤库',
         'notice.folderOpened': '已打开皮肤库',
         'notice.folderFailed': '无法打开文件夹，路径已复制：',
@@ -75,11 +74,15 @@ window.__ModuleLoader__.load({
         'design.done': '已生成',
         'design.fallback': '模型不可用，已用离线配色生成',
         'design.empty': '请先写一句描述，或选一张图片。',
-        'import.title': '从文件夹导入',
-        'import.desc': '用系统选择器挑一个 Codex 主题文件夹或 .zip 主题包。',
+        'import.title': '导入主题',
+        'import.desc': '选择一个 Codex 主题文件夹，或一个 .zip 主题包。',
+        'import.folder': '选择文件夹',
+        'import.folderHint': '含 theme.json 的主题目录',
+        'import.zip': '选择 ZIP 文件',
+        'import.zipHint': 'Codex 分发的 .zip 主题包',
+        'import.working': '正在导入…',
         'import.pickHint': '选中后会先检查里面有没有 theme.json，没有则不会导入。',
         'import.manual': '或者直接粘贴路径',
-        'action.pick': '选择文件夹或 ZIP',
         'import.placeholder': 'C:\\Users\\you\\AppData\\Local\\CodexDreamSkin\\themes\\studio.crimson-mecha-nova',
         'import.working': '正在导入…',
         'delete.title': '删除这个皮肤？',
@@ -103,8 +106,7 @@ window.__ModuleLoader__.load({
         'section.desc': 'Convert Codex Dream Skin packs into app skins, or generate one from a description.',
         'action.refresh': 'Refresh',
         'action.scan': 'Scan this machine',
-        'action.importZip': 'Import ZIP',
-        'action.importPath': 'Import folder',
+        'action.import': 'Import',
         'action.openFolder': 'Open skin library',
         'notice.folderOpened': 'Skin library opened',
         'notice.folderFailed': 'Could not open it; the path was copied: ',
@@ -150,11 +152,15 @@ window.__ModuleLoader__.load({
         'design.done': 'Created',
         'design.fallback': 'No model available — used the offline palette',
         'design.empty': 'Write a description or pick an image first.',
-        'import.title': 'Import from a folder',
-        'import.desc': 'Pick a Codex theme folder or a .zip pack with the system picker.',
+        'import.title': 'Import a theme',
+        'import.desc': 'Choose a Codex theme folder, or a .zip theme pack.',
+        'import.folder': 'Choose a folder',
+        'import.folderHint': 'A theme directory containing theme.json',
+        'import.zip': 'Choose a ZIP file',
+        'import.zipHint': 'A .zip theme pack',
+        'import.working': 'Importing…',
         'import.pickHint': 'The folder is checked for theme.json before anything is imported.',
         'import.manual': 'Or paste a path',
-        'action.pick': 'Choose folder or ZIP',
         'import.placeholder': 'C:\\Users\\you\\AppData\\Local\\CodexDreamSkin\\themes\\studio.crimson-mecha-nova',
         'import.working': 'Importing…',
         'delete.title': 'Delete this skin?',
@@ -912,26 +918,22 @@ window.__ModuleLoader__.load({
         }, 320)
       }
 
-      const onZipChosen = async (file) => {
+      const onZipChosen = (file) => {
         if (!file) return
-        setBusy('zip')
-        try {
+        // One dialog for both sources: a picked .zip is uploaded from the
+        // browser, a folder path is imported on the Host. The dialog stays
+        // mounted while the import runs, so it reports its own progress.
+        return run('zip', async () => {
           const buffer = await file.arrayBuffer()
           let binary = ''
           const bytes = new Uint8Array(buffer)
           const chunk = 0x8000
           for (let index = 0; index < bytes.length; index += chunk) binary += String.fromCharCode.apply(null, bytes.subarray(index, index + chunk))
-          const payload = await api.importZip(file.name, btoa(binary))
-          if (payload.snapshot) runtime.applySnapshot(payload.snapshot)
-          setNotice({ kind: 'success', text: `${t('notice.imported')}：${payload.result.id}` })
-        } catch (failure) {
-          const message = failure instanceof Error ? failure.message : String(failure)
-          setError(message)
-          setNotice({ kind: 'error', text: message })
-        } finally {
-          setBusy(null)
+          return api.importZip(file.name, btoa(binary))
+        }, (payload) => `${t('notice.imported')}：${payload.result.id}`).then((payload) => {
           if (fileInput.current) fileInput.current.value = ''
-        }
+          return payload
+        })
       }
 
       const onResetTransparency = (skin) =>
@@ -969,18 +971,10 @@ window.__ModuleLoader__.load({
             { className: 'dsks-actions' },
             h(Button, { icon: 'refresh', onClick: onRefresh, busy: busy === 'refresh' }, t('action.refresh')),
             h(Button, { icon: 'scan', onClick: onScan, busy: busy === 'scan' }, t('action.scan')),
-            h(Button, { icon: 'upload', onClick: () => fileInput.current?.click(), busy: busy === 'zip' }, t('action.importZip')),
-            h(Button, { icon: 'folder', onClick: () => setDialog('import') }, t('action.importPath')),
+            h(Button, { icon: 'upload', onClick: () => setDialog('import'), busy: busy === 'zip' }, t('action.import')),
             h(Button, { variant: 'primary', icon: 'sparkle', onClick: () => setDialog('design') }, t('action.design')),
           ),
         ),
-        h('input', {
-          ref: fileInput,
-          type: 'file',
-          accept: '.zip,application/zip',
-          style: { display: 'none' },
-          onChange: (event) => onZipChosen(event.target.files?.[0]),
-        }),
         h(Notice, { notice, onDismiss: () => setNotice(null) }),
         error && !notice ? h('p', { className: 'dsks-error' }, error) : null,
         snapshot.sources.length > 0 || snapshot.model
@@ -1036,7 +1030,19 @@ window.__ModuleLoader__.load({
               ],
             })
           : null,
-        dialog === 'import' ? h(ImportDialog, { t, busy: busy === 'import', onClose: () => setDialog(null), onPick: (path) => run('import', () => api.importPath(path), (payload) => `${t('notice.imported')}：${payload.result.id}`).then((payload) => { if (payload) setDialog(null) }) }) : null,
+        dialog === 'import'
+          ? h(ImportDialog, {
+              t,
+              busy,
+              zipInput: fileInput,
+              onClose: () => setDialog(null),
+              onZip: (file) => onZipChosen(file).then((payload) => { if (payload) setDialog(null) }),
+              onPick: (path) =>
+                run('import', () => api.importPath(path), (payload) => `${t('notice.imported')}：${payload.result.id}`).then((payload) => {
+                  if (payload) setDialog(null)
+                }),
+            })
+          : null,
         dialog === 'design'
           ? h(DesignDialog, {
               t,
@@ -1214,38 +1220,56 @@ window.__ModuleLoader__.load({
       return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
     }
 
-    function ImportDialog({ t, busy, onClose, onPick }) {
+    function ImportDialog({ t, busy, onClose, onPick, onZip, zipInput }) {
       const [path, setPath] = useState('')
       const [error, setError] = useState(null)
       const [picking, setPicking] = useState(false)
-      const pick = async () => {
+      const pickFolder = async () => {
         setPicking(true)
         setError(null)
         try {
           const picked = await api.pickSource()
-          if (!picked?.path) return
-          // The OS picker returns a folder or a .zip; hand it straight to the
-          // import call so a second "apply" click is not required.
-          await onPick(picked.path)
+          if (picked?.path) await onPick(picked.path)
         } catch (failure) {
           setError(failure instanceof Error ? failure.message : String(failure))
         } finally {
           setPicking(false)
         }
       }
-      return h(Dialog, {
-        t,
-        title: t('import.title'),
-        description: t('import.desc'),
-        onClose,
-        footer: [
-          h(Button, { key: 'cancel', onClick: onClose }, t('action.cancel')),
-          h(Button, { key: 'pick', variant: 'primary', icon: 'folder', busy: picking || busy, onClick: pick }, t('action.pick')),
-        ],
-      },
+      return h(
+        Dialog,
+        {
+          t,
+          title: t('import.title'),
+          description: t('import.desc'),
+          onClose,
+          footer: [h(Button, { key: 'cancel', onClick: onClose }, t('action.cancel'))],
+        },
+        h(
+          'div',
+          { className: 'dsks-import-choices' },
+          h(
+            'button',
+            { type: 'button', className: 'dsks-choice', disabled: picking || busy, onClick: pickFolder },
+            h(Icon, { name: 'folder' }),
+            h('span', { className: 'dsks-choice-title' }, t('import.folder')),
+            h('span', { className: 'dsks-choice-hint' }, t('import.folderHint')),
+            picking ? h('span', { className: 'dsks-spinner' }) : null,
+          ),
+          h(
+            'button',
+            { type: 'button', className: 'dsks-choice', disabled: picking || busy, onClick: () => zipInput.current?.click() },
+            h(Icon, { name: 'upload' }),
+            h('span', { className: 'dsks-choice-title' }, t('import.zip')),
+            h('span', { className: 'dsks-choice-hint' }, t('import.zipHint')),
+          ),
+        ),
         h('p', { className: 'dsks-hint' }, t('import.pickHint')),
+        busy === 'zip' || busy === 'import' ? h('p', { className: 'dsks-hint' }, t('import.working')) : null,
         error ? h('p', { className: 'dsks-error' }, error) : null,
-        h('details', { className: 'dsks-fallback' },
+        h(
+          'details',
+          { className: 'dsks-fallback' },
           h('summary', null, t('import.manual')),
           h('input', {
             className: 'dsks-input',
@@ -1257,6 +1281,13 @@ window.__ModuleLoader__.load({
             },
           }),
         ),
+        h('input', {
+          ref: zipInput,
+          type: 'file',
+          accept: '.zip,application/zip',
+          style: { display: 'none' },
+          onChange: (event) => onZip(event.target.files?.[0]),
+        }),
       )
     }
 
@@ -1561,6 +1592,14 @@ window.__ModuleLoader__.load({
 .dsks-dialog-desc{margin:0;font-size:13px;color:var(--dsw-alias-label-secondary)}
 .dsks-dialog-body{display:flex;flex-direction:column;gap:12px}
 .dsks-dialog-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+.dsks-import-choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:480px){.dsks-import-choices{grid-template-columns:1fr}}
+.dsks-choice{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px 14px 12px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer;transition:border-color .12s ease-out,background-color .12s ease-out}
+.dsks-choice:hover:not(:disabled){border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2))}
+.dsks-choice:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.dsks-choice:disabled{opacity:.55;cursor:default}
+.dsks-choice-title{font-size:13px;font-weight:500}
+.dsks-choice-hint{font-size:11px;color:var(--dsw-alias-label-tertiary)}
 .dsks-fallback{font-size:12px;color:var(--dsw-alias-label-tertiary)}
 .dsks-fallback summary{cursor:pointer;padding:2px 0}
 .dsks-input,.dsks-textarea{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;resize:vertical}

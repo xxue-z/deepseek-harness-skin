@@ -389,13 +389,17 @@ console.log('render walk (components execute without React DOM)')
   const ImportDialog = exportsModule.__components?.ImportDialog
   check('import dialog is exported for testing', typeof ImportDialog === 'function')
   if (typeof ImportDialog === 'function') {
+    const zipInput = { current: { click: () => {} } }
     const dialog = ImportDialog({
       t: (key) => key,
       busy: false,
+      zipInput,
       onClose: () => {},
       onPick: async () => {},
+      onZip: () => {},
     })
-    check('import dialog offers a picker', JSON.stringify(dialog).includes('action.pick'))
+    check('import dialog offers folder and ZIP choices', JSON.stringify(dialog).includes('import.folder') && JSON.stringify(dialog).includes('import.zip'))
+    check('import dialog has exactly two choices', (JSON.stringify(dialog).match(/dsks-choice"/g) || []).length === 2)
     check('import dialog keeps a manual path fallback', JSON.stringify(dialog).includes('import.manual'))
   }
   check('list styles are installed', document.head && styleTags.some((tag) => tag.getAttribute('data-plugin-css') === 'manager' && tag.textContent.includes('.dsks-row-wrap')))
