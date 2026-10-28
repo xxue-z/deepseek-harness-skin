@@ -975,15 +975,6 @@ window.__ModuleLoader__.load({
                 : null,
             )
           : null,
-        themes.length === 0
-          ? h(
-              'div',
-              { className: 'dsks-empty' },
-              h(Icon, { name: 'palette', size: 28 }),
-              h('p', { className: 'dsks-empty-title' }, t('state.empty')),
-              h('p', { className: 'dsks-empty-hint' }, t('state.emptyHint')),
-            )
-          : h('div', { className: 'dsks-grid' }, ...themes.map((skin) => h(SkinCard, { key: skin.id, skin, active: skin.id === activeId, selected: skin.id === selectedId, t, onSelect: () => setSelectedId(skin.id), onApply: () => onApply(skin.id) }))),
         selected
           ? h(SkinDetail, {
               skin: selected,
@@ -1001,6 +992,15 @@ window.__ModuleLoader__.load({
               onClose: () => setSelectedId(null),
             })
           : null,
+        themes.length === 0
+          ? h(
+              'div',
+              { className: 'dsks-empty' },
+              h(Icon, { name: 'palette', size: 28 }),
+              h('p', { className: 'dsks-empty-title' }, t('state.empty')),
+              h('p', { className: 'dsks-empty-hint' }, t('state.emptyHint')),
+            )
+          : h('div', { className: 'dsks-grid' }, ...themes.map((skin) => h(SkinCard, { key: skin.id, skin, active: skin.id === activeId, selected: skin.id === selectedId, t, onSelect: () => setSelectedId(skin.id), onApply: () => onApply(skin.id) }))),
         dialog === 'delete' && selected
           ? h(Dialog, {
               t,
