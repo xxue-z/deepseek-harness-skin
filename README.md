@@ -47,8 +47,12 @@ skin_theme {"action":"transparency","id":"skin.crimson-mecha-nova","transparency
 - **配色**：`ctx.theme.register({id, colorScheme, tokens})` 把主题注册进 Harness 主题注册表，
   `setTheme(id)` 切换；透明度变化用 `ctx.theme.overrideTokens()` 叠层，不重注册（避免闪烁）。
   token 映射见 [docs/superpowers/specs/2026-10-28-dsh-skin-plugin-design.md](docs/superpowers/specs/2026-10-28-dsh-skin-plugin-design.md)。
-- **壁纸**：插件自有 `<style data-plugin="@local/dsh-skin">` 注入 `body::before` 固定图层，
-  半透明的 `--dsw-alias-*` 面板让壁纸透出来，等价于 Codex 的玻璃面板效果。
+- **底色方案**：浅色/深色不是按主题里写的 `appearance` 选的，而是按面板/画布亮度算出来的
+  （插件只换 alias token，其余表面沿用宿主内置调色板，选错就整片变黑）。
+- **壁纸**：插件自有 `<style data-plugin="@local/dsh-skin">` 注入 `body::before` 固定图层。
+- **分层不透明度**：四类表面各有下限——画布/侧栏跟随"壁纸可见度"（0.18/0.26 起），
+  卡片 0.86，弹窗与浮动面板 0.95，输入框 0.90。同一层透明度会让设置面板变成"看穿对话"的玻璃窗，
+  分层之后壁纸在画布和侧栏上照样透，叠在上面的面板则始终可读。
 - **持久化**：Harness 的主题偏好 schema 不接受第三方主题 id，所以插件自己存
   `<DSH_HOME>/skin/state.json`，启动时重新注册并恢复。
 
@@ -95,5 +99,8 @@ node tools/client-selftest.mjs    # Web：主题注册、壁纸样式、透明�
   `[data-ds-part]` 选择器不会逐条翻译到 Harness DOM——那等于猜选择器，宁可少做。
 - **画布保底**：本应用把对话文字直接画在画布上（Codex 每条消息有独立卡片），
   所以即使原主题把 `main` 设成全透明，画布仍保留 18% 底色 + 壁纸暗化，保证可读。
+- **浮层不跟手**：设置面板的底色来自 `--dsw-alias-bg-layer-2`（dockkit 浮动面板），
+  它和画布是不同 token；"壁纸可见度"滑到很高时，画布/侧栏会更透，而浮动面板保持 0.95。
+  若某天宿主把设置面板改成画布 token，这条分层就失效——届时需要按新 DOM 再调一次。
 - **自动关闭**：在设置 →「外观」里重新选择 浅色/深色/跟随系统，会停用当前皮肤（同 Codex 的
   "Follow theme"），壁纸层同时移除。

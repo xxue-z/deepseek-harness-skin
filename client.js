@@ -46,7 +46,7 @@ window.__ModuleLoader__.load({
         'state.emptyHint': '主题包可以是一个包含 theme.json 的文件夹，或 Codex 的分发 ZIP。',
         'label.sources': 'Codex 主题目录',
         'label.transparency': '壁纸可见度',
-        'label.transparencyHint': '数值越大，壁纸越明显。0% 为原主题的不透明面板。',
+        'label.transparencyHint': '数值越大，壁纸在画布和侧栏越明显；卡片与设置面板始终保持可读。',
         'label.palette': '配色',
         'label.source': '来源',
         'label.created': '导入时间',
@@ -114,7 +114,7 @@ window.__ModuleLoader__.load({
         'state.emptyHint': 'A pack is a folder containing theme.json, or a Codex distribution ZIP.',
         'label.sources': 'Codex theme folders',
         'label.transparency': 'Wallpaper visibility',
-        'label.transparencyHint': 'Higher values show more wallpaper. 0% keeps the original opaque panels.',
+        'label.transparencyHint': 'Higher values show more wallpaper in the canvas and sidebar; cards and dialogs stay readable.',
         'label.palette': 'Palette',
         'label.source': 'Source',
         'label.created': 'Imported',
@@ -217,14 +217,35 @@ window.__ModuleLoader__.load({
       return `rgba(${Math.round(parsed.r)}, ${Math.round(parsed.g)}, ${Math.round(parsed.b)}, ${Math.round(alpha * 1000) / 1000})`
     }
 
-    function alphaSet(skin, transparency) {
-      const base = Math.max(0, Math.min(100, transparency)) / 100
-      return {
-        canvas: Math.max(0.18, 1 - base),
-        sidebar: 1 - base,
-        panel: 1 - base,
-        panelAlt: 1 - base,
+    /**
+     * Per-surface opacity policy.
+     *
+     * Codex gives every surface its own alpha: the canvas and the sidebar reveal
+     * the wallpaper, while cards, dialogs and floating panels stay nearly solid.
+     * Collapsing all of them into one number (the early version) turned the
+     * settings sheet into a window onto the conversation underneath, so each
+     * role keeps a floor here. `transparency` still means "how much wallpaper
+     * shows through the chrome".
+     */
+    const ALPHA_FLOORS = { canvas: 0.18, sidebar: 0.26, card: 0.86, dialog: 0.95, composer: 0.9 }
+
+    function withFloors(alpha) {
+      const value = alpha ?? {}
+      const pick = (name, fallback) => {
+        const raw = value[name]
+        return typeof raw === 'number' && Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : fallback
       }
+      return {
+        canvas: Math.max(ALPHA_FLOORS.canvas, pick('canvas', 0.7)),
+        sidebar: Math.max(ALPHA_FLOORS.sidebar, pick('sidebar', 0.7)),
+        panel: Math.max(ALPHA_FLOORS.card, pick('panel', 0.7)),
+        panelAlt: Math.max(ALPHA_FLOORS.dialog, pick('panelAlt', 0.7)),
+      }
+    }
+
+    function alphaSet(skin, transparency) {
+      const base = 1 - Math.max(0, Math.min(100, transparency)) / 100
+      return withFloors({ canvas: base, sidebar: base, panel: base, panelAlt: base })
     }
 
     /* ------------------------------------------------------------------ */
@@ -233,17 +254,16 @@ window.__ModuleLoader__.load({
 
     function tokensFor(skin) {
       const colors = skin.colors
-      const alpha = skin.surface?.alpha ?? { canvas: 0.7, sidebar: 0.7, panel: 0.7, panelAlt: 0.7 }
+      const alpha = withFloors(skin.surface?.alpha)
       return {
         '--dsw-alias-bg-base': withAlpha(colors.background, alpha.canvas),
         '--dsw-specific-sidebar-fill': withAlpha(colors.panel, alpha.sidebar),
         '--dsw-alias-bg-layer-1': withAlpha(colors.panel, alpha.panel),
         '--dsw-alias-bg-layer-2': withAlpha(colors.panelAlt, alpha.panelAlt),
         '--dsw-alias-bg-overlay': withAlpha(colors.panelAlt, alpha.panelAlt),
-        // The composer card is the one surface Codex renders as glass; it reads
-        // `--dsw-specific-input-major`, which is outside the alias catalogue but
-        // is the exact token the conversation plugin paints it with.
-        '--dsw-specific-input-major': withAlpha(colors.panelAlt, Math.min(1, alpha.panelAlt + 0.08)),
+        // The composer card and the user-question card read this non-catalogue
+        // token; a card has to stay readable over the wallpaper.
+        '--dsw-specific-input-major': withAlpha(colors.panelAlt, Math.max(ALPHA_FLOORS.composer, alpha.panel)),
         '--dsw-alias-border-l1': colors.line,
         '--dsw-alias-border-l2': colors.line,
         '--dsw-alias-label-primary': colors.text,
@@ -258,7 +278,7 @@ window.__ModuleLoader__.load({
 
     /** The alpha-bearing subset, used as the live transparency override layer. */
     function alphaTokens(skin, transparency) {
-      const alpha = Number.isFinite(transparency) ? alphaSet(skin, transparency) : skin.surface?.alpha
+      const alpha = Number.isFinite(transparency) ? alphaSet(skin, transparency) : withFloors(skin.surface?.alpha)
       const colors = skin.colors
       const value = (color, a) => ({ light: withAlpha(color, a), dark: withAlpha(color, a) })
       return {
@@ -267,7 +287,7 @@ window.__ModuleLoader__.load({
         '--dsw-alias-bg-layer-1': value(colors.panel, alpha.panel),
         '--dsw-alias-bg-layer-2': value(colors.panelAlt, alpha.panelAlt),
         '--dsw-alias-bg-overlay': value(colors.panelAlt, alpha.panelAlt),
-        '--dsw-specific-input-major': value(colors.panelAlt, Math.min(1, alpha.panelAlt + 0.08)),
+        '--dsw-specific-input-major': value(colors.panelAlt, Math.max(ALPHA_FLOORS.composer, alpha.panel)),
       }
     }
 
@@ -313,6 +333,9 @@ window.__ModuleLoader__.load({
         )
         rules.push('#root{position:relative;z-index:1;}')
       }
+      // Dialogs float above other UI; blurring their backdrop is what turns a
+// translucent fill into a glass card instead of a window onto the page.
+      rules.push('[role="dialog"],[role="alertdialog"]{backdrop-filter:blur(18px) saturate(1.12);-webkit-backdrop-filter:blur(18px) saturate(1.12);}')
       const fontFamily = skin.typography?.fontFamily
       if (typeof fontFamily === 'string' && fontFamily.trim() !== '' && !GENERIC_FONTS.test(fontFamily.trim())) {
         rules.push(`body{font-family:${fontFamily};}`)

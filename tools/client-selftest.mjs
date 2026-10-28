@@ -252,6 +252,8 @@ check('registers light scheme for an auto light palette', themeCalls.register.fi
 const darkReg = themeCalls.register.find((entry) => entry.id === 'skin.test')
 check('tokens use rgba surfaces', String(darkReg?.tokens?.['--dsw-alias-bg-base']).startsWith('rgba(16, 20, 24'))
 check('composer token is translucent', String(darkReg?.tokens?.['--dsw-specific-input-major']).startsWith('rgba('), String(darkReg?.tokens?.['--dsw-specific-input-major']))
+check('dialogs stay nearly solid', String(darkReg?.tokens?.['--dsw-alias-bg-layer-2']).endsWith('0.95)'), String(darkReg?.tokens?.['--dsw-alias-bg-layer-2']))
+check('cards stay readable', String(darkReg?.tokens?.['--dsw-alias-bg-layer-1']).endsWith('0.86)'), String(darkReg?.tokens?.['--dsw-alias-bg-layer-1']))
 check('text token is the theme text colour', darkReg?.tokens?.['--dsw-alias-label-primary'] === '#f2f6fa')
 check('activates the active skin', themeCalls.setTheme.includes('skin.test'))
 check('installs an alpha override layer', themeCalls.overrideTokens.length === 1 && themeCalls.overrideTokens[0].source === '@local/dsh-skin')
@@ -260,6 +262,7 @@ check('override carries light and dark values', typeof override?.light === 'stri
 
 const wallpaperTag = styleTags.find((tag) => tag.getAttribute('data-plugin-css') === 'skin')
 check('injects the wallpaper stylesheet', Boolean(wallpaperTag))
+check('stylesheet blurs dialog backdrops', wallpaperTag?.textContent.includes('[role="dialog"]'))
 check('stylesheet paints body::before', wallpaperTag?.textContent.includes('body::before'))
 check('stylesheet uses the wallpaper url', wallpaperTag?.textContent.includes('/skin/assets/skin.test/wallpaper'))
 check('stylesheet positions by focus', wallpaperTag?.textContent.includes('30% 60%'))
@@ -278,6 +281,9 @@ console.log('transparency preview')
   const last = themeCalls.overrideTokens.at(-1)
   check('preview updates the override layer', String(last?.tokens?.['--dsw-alias-bg-base']?.dark).endsWith('0.2)'), String(last?.tokens?.['--dsw-alias-bg-base']?.dark))
   check('preview keeps a canvas floor', String(last?.tokens?.['--dsw-alias-bg-base']?.dark).includes('0.2'), String(last?.tokens?.['--dsw-alias-bg-base']?.dark))
+  check('preview keeps cards readable', String(last?.tokens?.['--dsw-alias-bg-layer-1']?.dark).endsWith('0.86)'), String(last?.tokens?.['--dsw-alias-bg-layer-1']?.dark))
+  check('preview keeps dialogs solid', String(last?.tokens?.['--dsw-alias-bg-layer-2']?.dark).endsWith('0.95)'), String(last?.tokens?.['--dsw-alias-bg-layer-2']?.dark))
+  check('preview keeps the composer solid', String(last?.tokens?.['--dsw-specific-input-major']?.dark).endsWith('0.9)'), String(last?.tokens?.['--dsw-specific-input-major']?.dark))
 }
 
 console.log('deactivate')

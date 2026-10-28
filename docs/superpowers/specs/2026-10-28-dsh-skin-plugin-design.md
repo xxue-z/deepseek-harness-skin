@@ -214,3 +214,16 @@ DSH 主题以 alias token 表达（`--dsw-alias-*`，见 `Theme` 检查器）：
 9. **输入框补一个非目录内 token**。会话输入卡读的是 `--dsw-specific-input-major`
    （不在 `Theme` 检查器列出的 14 个 alias 里），补成半透明 `panelAlt` 才像 Codex
    那样是玻璃卡片，而不是实心块。
+10. **透明度必须分层，不能一个数用到底**。Codex 给每类表面单独的 alpha：画布/侧栏透出壁纸，
+   卡片、弹窗、浮动面板接近实心。第二版把用户透明度（70% → 全表面 0.3）统一套在所有
+   token 上，结果设置面板变成"看穿对话"的玻璃窗，字叠字看不清。现在四类表面各留下限：
+     - 画布 0.18 / 侧栏 0.26（跟随滑块，壁纸主场）
+     - 卡片（layer-1）0.86
+     - 弹窗与 dockkit 浮动面板（layer-2 / overlay）0.95
+     - 输入卡 0.90
+   滑杆的语义随之收窄为"画布与侧栏的壁纸可见度"，卡片与面板不再跟着变。
+   `[role=dialog]` 额外加 `backdrop-filter: blur(18px)`，让半透明的模态成为玻璃卡。
+11. **面板 token 的判断依据**：设置面板是 dockkit 浮动面板（`position:fixed` +
+   `--dsw-alias-bg-layer-2` + `--dsw-radius-panel` + 阴影），不是画布。所以只调
+   layer-2/overlay 就能让设置面板实心化，同时不动对话区的壁纸效果——这正是分层方案的
+   关键前提。若宿主以后改用它 token，需要重新核对。
