@@ -1,0 +1,60 @@
+{
+    "schemaVersion":  1,
+    "id":  "skin.deepseek",
+    "name":  "DeepSeek-鲸鱼娘",
+    "description":  "",
+    "appearance":  "light",
+    "origin":  {
+                   "kind":  "bundled"
+               },
+    "wallpaper":  {
+                      "file":  "wallpaper.jpg",
+                      "focusX":  0.5,
+                      "focusY":  0.5,
+                      "dim":  0
+                  },
+    "video":  null,
+    "colors":  {
+                   "background":  "#bd9999",
+                   "panel":  "#abb4cf",
+                   "panelAlt":  "#c3cee4",
+                   "accent":  "#7a4e29",
+                   "accentAlt":  "#ceb683",
+                   "secondary":  "#85c1cc",
+                   "highlight":  "#455b78",
+                   "text":  "#352970",
+                   "muted":  "#030303",
+                   "line":  "#d3d3d4"
+               },
+    "typography":  {
+                       "fontFamily":  null
+                   },
+    "surface":  {
+                    "radius":  16,
+                    "blur":  0,
+                    "alpha":  {
+                                  "canvas":  null,
+                                  "sidebar":  null,
+                                  "panel":  null,
+                                  "panelAlt":  null,
+                                  "authored":  false
+                              }
+                },
+    "codex":  {
+                  "brandSubtitle":  null,
+                  "tagline":  null,
+                  "statusText":  null,
+                  "quote":  null,
+                  "projectPrefix":  null,
+                  "projectLabel":  null,
+                  "promoTitle":  null,
+                  "promoSub":  null,
+                  "promoUrl":  null,
+                  "safeArea":  "none",
+                  "taskMode":  "ambient",
+                  "video":  null,
+                  "themeCss":  "[data-ds-part=\"sidebar\"] {\n  background-color: var(--ds-theme-color-panel);\n  border-radius: var(--ds-theme-surface-radius);\n  backdrop-filter: blur(var(--ds-theme-surface-blur));\n}\n\n[data-ds-part=\"composer\"]:focus-visible {\n  border-color: var(--ds-theme-color-accent);\n}\n"
+              },
+    "css":  "",
+    "createdAt":  "2026-10-29T06:18:08.560Z"
+}

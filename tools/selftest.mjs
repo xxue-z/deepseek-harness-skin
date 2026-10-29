@@ -8,7 +8,8 @@
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { homedir, tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { authoredTransparency, convertCodexTheme, findThemeRoot } from '../lib/convert.js'
 import { SkinStore } from '../lib/store.js'
 import { SkinService } from '../lib/service.js'
@@ -20,6 +21,10 @@ import { makeMp4 } from './mp4-fixture.mjs'
 import { createSkinTool } from '../lib/tool.js'
 import { decodeVideoDataUrl } from '../lib/service.js'
 import { checkForUpdate, compareVersions, parseVersion } from '../lib/update.js'
+import { listBundled, seedBundledThemes } from '../lib/bundled.js'
+
+/** Package root, shared with the bundled-theme checks below. */
+const here = dirname(fileURLToPath(import.meta.url))
 
 let failures = 0
 function check(name, condition, detail = '') {
@@ -396,6 +401,40 @@ console.log('update check')
     },
   })
   check('an unreachable GitHub is not an error the page throws on', offline.error === 'offline' && offline.current === '1.0.2')
+}
+
+console.log('bundled themes')
+{
+  const available = listBundled(join(here, '..'))
+  check('the package ships default themes', available.length >= 2, available.map((theme) => theme.id).join(', '))
+  check('one of them is dynamic', available.some((theme) => theme.document.video !== null))
+  check('their documents are self-consistent', available.every((theme) => theme.document.id.startsWith('skin.') && theme.document.name.length > 0))
+
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-skin-bundled-'))
+  const store = new SkinStore(join(dir, 'skin'))
+  store.ensure()
+  const first = seedBundledThemes(store, join(here, '..'))
+  check('a first start imports them', first.alreadySeeded === false && first.seeded.length === available.length, JSON.stringify(first))
+  check('they land in the library', available.every((theme) => store.get(theme.id) !== null))
+  const dynamic = available.find((theme) => theme.document.video !== null)
+  check('the dynamic one keeps its video file', dynamic ? store.videoPath(dynamic.id) !== null : false)
+
+  // Deleting a bundled theme must stay deleted: the marker is what prevents a
+  // silent re-import on the next start.
+  const removable = available.find((theme) => store.readState().activeId !== theme.id)
+  store.remove(removable.id)
+  const second = seedBundledThemes(store, join(here, '..'))
+  check('a deleted bundled theme is not restored', second.alreadySeeded === true && store.get(removable.id) === null)
+
+  // A library that already had one under the same id keeps the user's copy.
+  const fresh = new SkinStore(join(dir, 'other'))
+  fresh.ensure()
+  const kept = available[0]
+  mkdirSync(fresh.themeDir(kept.id), { recursive: true })
+  writeFileSync(join(fresh.themeDir(kept.id), 'theme.json'), JSON.stringify({ ...kept.document, name: '我的改名版本' }))
+  const third = seedBundledThemes(fresh, join(here, '..'))
+  check('an existing copy is kept', third.skipped.includes(kept.id) && fresh.get(kept.id)?.name === '我的改名版本')
+  rmSync(dir, { recursive: true, force: true })
 }
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`)

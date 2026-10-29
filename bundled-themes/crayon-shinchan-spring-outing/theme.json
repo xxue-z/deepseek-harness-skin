@@ -1,0 +1,67 @@
+{
+    "schemaVersion":  1,
+    "id":  "skin.crayon-shinchan-spring-outing",
+    "name":  "蜡笔小新-春游",
+    "description":  "樱花树下，春日野餐。",
+    "appearance":  "light",
+    "origin":  {
+                   "kind":  "bundled"
+               },
+    "wallpaper":  {
+                      "file":  "wallpaper.jpg",
+                      "focusX":  0.62,
+                      "focusY":  0.52,
+                      "dim":  0
+                  },
+    "colors":  {
+                   "background":  "#fff6f8",
+                   "panel":  "#fffdfd",
+                   "panelAlt":  "#ffeef3",
+                   "accent":  "#e0577f",
+                   "accentAlt":  "#f0a63b",
+                   "secondary":  "#4f9fd6",
+                   "highlight":  "#6fbf5a",
+                   "text":  "#3c2a30",
+                   "muted":  "#8b737b",
+                   "line":  "rgba(224, 87, 127, .26)"
+               },
+    "typography":  {
+                       "fontFamily":  "ui-sans-serif, system-ui, -apple-system, sans-serif"
+                   },
+    "surface":  {
+                    "radius":  24,
+                    "blur":  18,
+                    "alpha":  {
+                                  "canvas":  null,
+                                  "sidebar":  null,
+                                  "panel":  null,
+                                  "panelAlt":  null,
+                                  "authored":  false
+                              }
+                },
+    "codex":  {
+                  "brandSubtitle":  "CODEX DREAM SKIN",
+                  "tagline":  "樱花树下，春日野餐。",
+                  "statusText":  "SPRING PICNIC READY",
+                  "quote":  "MAKE SOMETHING WONDERFUL",
+                  "projectPrefix":  "选择项目 ·",
+                  "projectLabel":  "★ 选择项目",
+                  "promoTitle":  "Codex Dream Skin",
+                  "promoSub":  "蜡笔小新-春游",
+                  "promoUrl":  "https://github.com/Fei-Away/Codex-Dream-Skin",
+                  "safeArea":  "left",
+                  "taskMode":  "ambient",
+                  "video":  "background.mp4",
+                  "themeCss":  "[data-ds-part=\"root\"] {\n  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;\n  letter-spacing: 0;\n}\n\n[data-ds-part=\"header\"] {\n  border-bottom-color: var(--ds-theme-color-line);\n  border-bottom-style: solid;\n  border-bottom-width: 1px;\n}\n\n[data-ds-part=\"sidebar\"] {\n  border-right-color: var(--ds-theme-color-line);\n  border-right-style: solid;\n  border-right-width: 1px;\n}\n\n[data-ds-part=\"composer\"] {\n  background-color: var(--ds-theme-color-panel);\n  border-color: var(--ds-theme-color-line);\n  border-style: solid;\n  border-width: 1px;\n  border-radius: 24px;\n  box-shadow: 0 10px 26px rgba(224, 87, 127, .24);\n  backdrop-filter: blur(18px) saturate(1.14);\n}\n\n[data-ds-part=\"composer-toolbar\"] {\n  color: var(--ds-theme-color-muted);\n}\n\n[data-ds-part=\"dialog\"] {\n  background-color: var(--ds-theme-color-panel-alt);\n  border-color: var(--ds-theme-color-line);\n  border-style: solid;\n  border-width: 1px;\n  border-radius: 20px;\n  box-shadow: 0 18px 38px rgba(60, 42, 48, .16);\n}\n\n[data-ds-part=\"message\"] {\n  border-radius: 16px;\n}\n\n[data-ds-part=\"project-list\"] {\n  row-gap: 6px;\n}\n"
+              },
+    "css":  "",
+    "createdAt":  "2026-10-28T02:19:35.509Z",
+    "video":  {
+                  "file":  "video.mp4",
+                  "width":  1376,
+                  "height":  768,
+                  "durationMs":  5207,
+                  "codec":  "avc1",
+                  "bytes":  5774495
+              }
+}

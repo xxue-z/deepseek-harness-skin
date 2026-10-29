@@ -11,6 +11,7 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createSkinHandler } from './lib/api.js'
+import { seedBundledThemes } from './lib/bundled.js'
 import { defaultCodexDirs, SkinService } from './lib/service.js'
 import { SkinStore } from './lib/store.js'
 import { createSkinTool } from './lib/tool.js'
@@ -130,6 +131,15 @@ export function apply(ctx, config) {
       throw error
     }
     return { target, backup }
+  }
+
+  // Bundled themes: copied into the library once, so a fresh install opens on
+  // two ready-made skins instead of an empty list. Deleting one stays deleted.
+  try {
+    const seeded = seedBundledThemes(store, PACKAGE_DIR)
+    if (seeded.seeded.length > 0) log(`已导入自带主题：${seeded.seeded.join(', ')}`)
+  } catch (error) {
+    log(`自带主题导入失败：${error instanceof Error ? error.message : String(error)}`)
   }
 
   const toolState = { registered: false, error: null }

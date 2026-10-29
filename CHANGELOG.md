@@ -1,6 +1,6 @@
 # 更新日志
 
-版本号与 `package.json` 的 `version` 一致；同一个版本对应一个 git 标签（`v1.0.7`）和一次 GitHub Release。
+版本号与 `package.json` 的 `version` 一致；同一个版本对应一个 git 标签（`v1.0.8`）和一次 GitHub Release。
 每次发布更新三处：这里加一节、`package.json` 提升版本、打标签推送——剩下的由 GitHub Actions 自动完成。
 
 包名（也是加载器解析的模块名）是 `@xxue-z/dsh-skin`：scope 属于作者本人，既避免与其它插件重名，
@@ -8,6 +8,18 @@
 → `@local/dsh-skin`（1.0.6）→ `@xxue-z/dsh-skin`（1.0.7）。
 
 该插件从桌面版自带的那个版本起步，版本号记作 `1.0.1`。
+
+## 1.0.8 — 2026-10-29
+
+**自带两个默认主题**
+
+- 首次启动把「蜡笔小新-春游」（浅色、动态，带 `background.mp4`）和「DeepSeek-鲸鱼娘」（浅色、静态）复制进皮肤库，新装不再是空列表。它们只是副本：改色、重命名、删除都只影响你的库，删掉的不会在下次启动自动回来（`state.json` 的 `seeded` 标记只允许一次）。
+- 顺带修了 `store.remove()`：它重写 `state.json` 时只保留自己挑的几个字段，会悄悄丢掉 `video` 与 `seeded`。
+
+**安装包与文档**
+
+- 安装包现在包含 `bundled-themes/`，体积 7.3 MB；打包清单改由 `tools/pack-list.mjs` 生成（支持递归目录、可本地 `--check`），避免 CI 里的通配符漏掉子目录。
+- README 顶部加入三张截图（两个默认主题 + 设置页）。
 
 ## 1.0.7 — 2026-10-29
 

@@ -77,24 +77,11 @@ jobs:
           STAGE="$(mktemp -d)"
           DIR="deepseek-harness-skin-${TAG}"
           mkdir -p "dist/$DIR"
-          FILES="$(node -e "
-            const { readFileSync, readdirSync } = require('node:fs')
-            const { join } = require('node:path')
-            const manifest = JSON.parse(readFileSync('package.json', 'utf8'))
-            const entries = ['package.json', ...(manifest.files ?? []).map((entry) => entry.replace(/^\.\//, ''))]
-            const expand = (entry) => {
-              if (!entry.includes('*')) return [entry]
-              const [dir, pattern] = [entry.slice(0, entry.lastIndexOf('/')), entry.slice(entry.lastIndexOf('/') + 1)]
-              const regex = new RegExp('^' + pattern.replace(/\./g, '\\\\.').replace(/\*/g, '.*') + '$')
-              return readdirSync(dir).filter((name) => regex.test(name)).map((name) => join(dir, name))
-            }
-            const out = entries.flatMap(expand)
-            // A directory entry carries its whole subtree to tar; dropping it
-            // would silently ship a bundle without lib/.
-            process.stdout.write(out.join('\n') + '\n')
-          ")"
-          printf '%s\n' "$FILES"
-          printf '%s\n' "$FILES" | tar -czf "dist/deepseek-harness-skin-${TAG}.tar.gz" -C . -T -
+          # The list (and its guard against a bundle without the default
+          # themes) lives in tools/pack-list.mjs so it can be checked locally.
+          node tools/pack-list.mjs --check > /tmp/pack-list.txt
+          printf '%s\n' "$(wc -l < /tmp/pack-list.txt) 个文件进包"
+          tar -czf "dist/deepseek-harness-skin-${TAG}.tar.gz" -C . -T /tmp/pack-list.txt
           # Unpack once to stamp the commit the tag points at, then repack so an
           # installed copy can name its build.
           tar -xzf "dist/deepseek-harness-skin-${TAG}.tar.gz" -C "$STAGE"
