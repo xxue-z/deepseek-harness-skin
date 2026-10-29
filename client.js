@@ -65,10 +65,29 @@ window.__ModuleLoader__.load({
         'appearance.light': '浅色',
         'appearance.auto': '自适应',
         'design.title': 'AI 主题设计',
-        'design.desc': '描述你想要的风格；可以附一张图作为壁纸与配色来源。',
+        'design.desc': '描述你想要的风格；可以附一张图、一段视频，或两者都给。',
         'design.placeholder': '例如：赛博霓虹，暗紫底色，一点电光青，适合深夜写代码',
-        'design.image': '选择图片（可选）',
+        'design.image': '选择图片',
+        'design.video': '选择视频',
+        'design.replaceImage': '换一张图片',
+        'design.replaceVideo': '换一段视频',
+        'design.clearImage': '移除图片',
+        'design.clearVideo': '移除视频',
         'design.imageHint': '图片会作为新皮肤的壁纸，并从中取样配色',
+        'design.imageTag': '壁纸',
+        'design.videoTag': '视频首帧',
+        'design.mediaHint': '只给图片 → 静态主题；只给视频 → 视频首帧当壁纸并播放视频；两个都给 → 图片当壁纸、视频当动态背景',
+        'design.modeNone': '还没有选择素材：将只按描述生成一套配色。',
+        'design.modeImage': '静态主题：这张图片作为壁纸。',
+        'design.modeVideo': '动态主题：视频首帧作为壁纸与静态回退，视频循环播放。',
+        'design.modeBoth': '动态主题：图片作为壁纸，视频作为动态背景。',
+        'design.advanced': '更多设置（主题名）',
+        'design.namePlaceholder': '主题名（留空则让模型起名）',
+        'design.model': '设计模型',
+        'design.modelsLoading': '正在读取可用模型…',
+        'design.modelsFailed': '读取模型列表失败，将使用默认模型',
+        'design.noImageMark': '（纯文本）',
+        'design.modelBlind': '这个模型不能看图：会按描述和取色生成，首帧不会发给它。换一个支持图片的模型可以按画面设计。',
         'design.base': '以当前主题为基底微调',
         'design.working': '正在设计…',
         'design.done': '已生成',
@@ -167,10 +186,29 @@ window.__ModuleLoader__.load({
         'appearance.light': 'Light',
         'appearance.auto': 'Adaptive',
         'design.title': 'AI theme design',
-        'design.desc': 'Describe the look you want; add an image to use as wallpaper and palette source.',
+        'design.desc': 'Describe the look you want; attach an image, a video, or both.',
         'design.placeholder': 'e.g. cyber neon, dark violet base, a touch of electric cyan, for late-night coding',
-        'design.image': 'Choose an image (optional)',
+        'design.image': 'Choose image',
+        'design.video': 'Choose video',
+        'design.replaceImage': 'Replace image',
+        'design.replaceVideo': 'Replace video',
+        'design.clearImage': 'Remove image',
+        'design.clearVideo': 'Remove video',
         'design.imageHint': 'The image becomes the wallpaper and the palette source',
+        'design.imageTag': 'Wallpaper',
+        'design.videoTag': 'First frame',
+        'design.mediaHint': 'Image only → static theme; video only → its first frame is the wallpaper and the clip plays; both → image is the wallpaper, video is the dynamic background',
+        'design.modeNone': 'No media yet: the palette is derived from the description alone.',
+        'design.modeImage': 'Static theme: the image becomes the wallpaper.',
+        'design.modeVideo': 'Dynamic theme: the first frame is the poster and fallback, the clip loops behind the UI.',
+        'design.modeBoth': 'Dynamic theme: the image is the wallpaper, the video plays behind it.',
+        'design.advanced': 'More options (name)',
+        'design.namePlaceholder': 'Theme name (leave empty to let the model name it)',
+        'design.model': 'Design model',
+        'design.modelsLoading': 'Reading available models…',
+        'design.modelsFailed': 'Could not read the model list; the default model is used',
+        'design.noImageMark': ' (text only)',
+        'design.modelBlind': 'This model cannot see images: it designs from the description and colours, and the first frame is not sent. Pick an image-capable model to design from the picture.',
         'design.base': 'Restyle the selected skin',
         'design.working': 'Designing…',
         'design.done': 'Created',
@@ -474,6 +512,7 @@ window.__ModuleLoader__.load({
       delete: (id) => request('delete', { method: 'POST', body: JSON.stringify({ id }) }),
       recolor: (id, palette) => request('recolor', { method: 'POST', body: JSON.stringify({ id, palette }) }),
       design: (input) => request('design', { method: 'POST', body: JSON.stringify(input) }),
+      models: () => request('models'),
       exportTheme: (id) => request('export', { method: 'POST', body: JSON.stringify({ id }) }),
     }
 
@@ -1845,32 +1884,86 @@ window.__ModuleLoader__.load({
     }
 
     function DesignDialog({ t, runtime, base, onClose, onDone }) {
-      const snapshot = runtime.getSnapshot()
-      const defaultModel = snapshot?.model ?? { provider: '', model: '' }
       const [description, setDescription] = useState('')
       const [image, setImage] = useState(null)
       const [palette, setPalette] = useState([])
+      const [video, setVideo] = useState(null)
+      const [details, setDetails] = useState({ name: '' })
       const [useBase, setUseBase] = useState(Boolean(base))
-      const [modelProvider, setModelProvider] = useState('')
-      const [modelModel, setModelModel] = useState('')
+      const [model, setModel] = useState({ provider: '', model: '' })
+      const [catalog, setCatalog] = useState(null)
+      const [catalogError, setCatalogError] = useState(null)
       const [busy, setBusy] = useState(false)
       const [error, setError] = useState(null)
       const [result, setResult] = useState(null)
-      const fileInput = useRef(null)
+      const imageInput = useRef(null)
+      const videoInput = useRef(null)
+
+      // The dropdown lists exactly the routes the Host can call, which is the
+      // same registry the chat composer reads.
+      useEffect(() => {
+        let cancelled = false
+        api
+          .models()
+          .then((payload) => {
+            if (cancelled) return
+            setCatalog(payload.models)
+            const preferred = payload.models?.default
+            const first = payload.models?.groups?.[0]?.models?.[0]
+            const pick = preferred ?? first
+            if (pick) setModel({ provider: pick.provider, model: pick.model ?? pick.id })
+          })
+          .catch((failure) => {
+            if (!cancelled) setCatalogError(failure instanceof Error ? failure.message : String(failure))
+          })
+        return () => {
+          cancelled = true
+        }
+      }, [t])
+
+      const allModels = useMemo(() => (catalog?.groups ?? []).flatMap((group) => group.models.map((entry) => ({ ...entry, groupName: group.name }))), [catalog])
+      const selected = allModels.find((entry) => entry.provider === model.provider && entry.id === model.model) ?? null
+      const hasMedia = image !== null || video !== null
+      const needsImage = hasMedia
+      const modelBlind = needsImage && selected !== null && selected.images === 'no'
 
       const onImage = async (file) => {
         if (!file) return
         try {
           const prepared = await prepareImage(file)
           setImage(prepared.dataUrl)
+          // The image outranks the video frame for the palette; a video-only
+          // design keeps the colours sampled from its first frame.
           setPalette(prepared.palette)
         } catch (failure) {
           setError(failure instanceof Error ? failure.message : String(failure))
         }
       }
 
+      const onVideo = async (file) => {
+        if (!file) return
+        try {
+          const prepared = await prepareVideo(file)
+          setVideo(prepared)
+          // Only the video's first frame seeds the palette/static fallback.
+          setPalette(prepared.palette)
+        } catch (failure) {
+          setError(failure instanceof Error ? failure.message : String(failure))
+        }
+      }
+
+      const clearVideo = () => {
+        setVideo(null)
+        setPalette(image ? palette : [])
+      }
+
+      const clearImage = () => {
+        setImage(null)
+        setPalette(video ? video.palette : [])
+      }
+
       const generate = async () => {
-        if (description.trim() === '' && image === null) {
+        if (description.trim() === '' && !hasMedia) {
           setError(t('design.empty'))
           return
         }
@@ -1880,10 +1973,13 @@ window.__ModuleLoader__.load({
           const payload = await api.design({
             description: description.trim(),
             palette,
-            imageDataUrl: image,
+            // Video-only: the first frame becomes the poster/static fallback.
+            imageDataUrl: image ?? video?.frame ?? null,
+            videoDataUrl: video?.dataUrl ?? null,
+            details: { ...details, hasVideo: video !== null },
             baseId: useBase && base ? base.id : null,
-            modelProvider: modelProvider.trim() || undefined,
-            modelModel: modelModel.trim() || undefined,
+            modelProvider: model.provider || undefined,
+            modelModel: model.model || undefined,
           })
           if (payload.snapshot) runtime.applySnapshot(payload.snapshot)
           setResult({ skin: payload.skin, warning: payload.warning, usedModel: payload.usedModel })
@@ -1893,6 +1989,14 @@ window.__ModuleLoader__.load({
           setBusy(false)
         }
       }
+
+      const modeHint = video
+        ? image
+          ? t('design.modeBoth')
+          : t('design.modeVideo')
+        : image
+          ? t('design.modeImage')
+          : t('design.modeNone')
 
       return h(
         Dialog,
@@ -1920,6 +2024,7 @@ window.__ModuleLoader__.load({
                 ),
               ),
               h('p', { className: 'dsks-design-note' }, result.usedModel ? `模型生成 · ${result.skin.appearance}` : t('design.fallback')),
+              result.skin.video ? h('p', { className: 'dsks-design-note' }, `${t('label.dynamic')} · ${result.skin.video.width}×${result.skin.video.height} · ${(Math.round((result.skin.video.durationMs ?? 0) / 100) / 10).toFixed(1)}s`) : null,
               result.warning ? h('p', { className: 'dsks-hint' }, result.warning) : null,
               h('div', { className: 'dsks-swatches dsks-swatches-lg' }, ...['background', 'panel', 'panelAlt', 'accent', 'accentAlt', 'secondary', 'highlight', 'text'].map((key) => h('span', { key, className: 'dsks-swatch', style: { background: result.skin.colors[key] }, title: `${key}: ${result.skin.colors[key]}` }))),
               h('p', { className: 'dsks-hint' }, `id: ${result.skin.id}`),
@@ -1938,20 +2043,59 @@ window.__ModuleLoader__.load({
               h(
                 'div',
                 { className: 'dsks-drop' },
-                image
-                  ? h('img', { className: 'dsks-drop-image', src: image, alt: '' })
-                  : h('div', { className: 'dsks-drop-empty' }, h(Icon, { name: 'image', size: 22 }), h('span', null, t('design.imageHint'))),
+                h(
+                  'div',
+                  { className: 'dsks-media-row' },
+                  image
+                    ? h(
+                        'div',
+                        { className: 'dsks-media' },
+                        h('img', { className: 'dsks-media-image', src: image, alt: '' }),
+                        h('span', { className: 'dsks-media-tag' }, t('design.imageTag')),
+                      )
+                    : null,
+                  video
+                    ? h(
+                        'div',
+                        { className: 'dsks-media' },
+                        h('img', { className: 'dsks-media-image', src: video.frame, alt: '' }),
+                        h('span', { className: 'dsks-media-tag dsks-media-live' }, h(Icon, { name: 'play', size: 11 }), `${t('design.videoTag')} · ${video.meta.width}×${video.meta.height}`),
+                      )
+                    : null,
+                  !hasMedia ? h('div', { className: 'dsks-drop-empty' }, h(Icon, { name: 'image', size: 22 }), h('span', null, t('design.mediaHint'))) : null,
+                ),
                 h(
                   'div',
                   { className: 'dsks-drop-actions' },
-                  h(Button, { onClick: () => fileInput.current?.click() }, t('design.image')),
-                  image ? h(Button, { onClick: () => { setImage(null); setPalette([]) } }, t('action.cancel')) : null,
+                  h(Button, { onClick: () => imageInput.current?.click() }, image ? t('design.replaceImage') : t('design.image')),
+                  h(Button, { onClick: () => videoInput.current?.click() }, video ? t('design.replaceVideo') : t('design.video')),
+                  image ? h(Button, { onClick: clearImage }, t('design.clearImage')) : null,
+                  video ? h(Button, { onClick: clearVideo }, t('design.clearVideo')) : null,
                 ),
-                h('input', { ref: fileInput, type: 'file', accept: 'image/*', style: { display: 'none' }, onChange: (event) => onImage(event.target.files?.[0]) }),
+                h('p', { className: 'dsks-hint' }, modeHint),
+                h('input', { ref: imageInput, type: 'file', accept: 'image/*', style: { display: 'none' }, onChange: (event) => onImage(event.target.files?.[0]) }),
+                h('input', { ref: videoInput, type: 'file', accept: 'video/mp4,video/*', style: { display: 'none' }, onChange: (event) => onVideo(event.target.files?.[0]) }),
               ),
               palette.length > 0
                 ? h('div', { className: 'dsks-swatches dsks-swatches-lg' }, ...palette.map((color, index) => h('span', { key: index, className: 'dsks-swatch', style: { background: color }, title: color })))
                 : null,
+              h(
+                'details',
+                { className: 'dsks-fallback dsks-advanced' },
+                h('summary', null, t('design.advanced')),
+                h(
+                  'div',
+                  { className: 'dsks-form' },
+                  // Only the name is structured input; mood and extra rules are
+                  // the brief's own words and belong in the description above.
+                  h('input', {
+                    className: 'dsks-input',
+                    value: details.name,
+                    placeholder: t('design.namePlaceholder'),
+                    onChange: (event) => setDetails({ ...details, name: event.target.value }),
+                  }),
+                ),
+              ),
               base
                 ? h(
                     'label',
@@ -1962,21 +2106,32 @@ window.__ModuleLoader__.load({
                 : null,
               h(
                 'label',
-                { className: 'dsks-checkbox' },
-                h('span', null, `${t('label.model')}：${defaultModel.provider}/${defaultModel.model}`),
+                { className: 'dsks-field' },
+                h('span', { className: 'dsks-field-label' }, t('design.model')),
+                h(
+                  'select',
+                  {
+                    className: 'dsks-select',
+                    value: selected ? `${selected.provider}::${selected.id}` : '',
+                    disabled: busy || allModels.length === 0,
+                    onChange: (event) => {
+                      const [provider, id] = String(event.target.value).split('::')
+                      setModel({ provider, model: id })
+                    },
+                  },
+                  ...(allModels.length === 0
+                    ? [h('option', { key: 'none', value: '' }, catalogError ? t('design.modelsFailed') : t('design.modelsLoading'))]
+                    : []),
+                  ...(catalog?.groups ?? []).map((group) =>
+                    h(
+                      'optgroup',
+                      { key: group.id, label: group.name },
+                      ...group.models.map((entry) => h('option', { key: `${entry.provider}::${entry.id}`, value: `${entry.provider}::${entry.id}` }, entry.images === 'no' ? `${entry.name}${t('design.noImageMark')}` : entry.name)),
+                    ),
+                  ),
+                ),
               ),
-              h('input', {
-                className: 'dsks-input',
-                value: modelProvider,
-                placeholder: defaultModel.provider,
-                onChange: (event) => setModelProvider(event.target.value),
-              }),
-              h('input', {
-                className: 'dsks-input',
-                value: modelModel,
-                placeholder: defaultModel.model,
-                onChange: (event) => setModelModel(event.target.value),
-              }),
+              modelBlind ? h('p', { className: 'dsks-hint dsks-warn' }, t('design.modelBlind')) : null,
               error ? h('p', { className: 'dsks-error' }, error) : null,
             ),
       )
@@ -2049,6 +2204,61 @@ window.__ModuleLoader__.load({
       const canvas = drawToCanvas(image, 2560)
       const preview = drawToCanvas(image, 72)
       return { dataUrl: canvas.toDataURL('image/jpeg', 0.9), palette: dominantColors(preview) }
+    }
+
+    /**
+     * Read one MP4 and grab its first frame.
+     *
+     * The browser is the only decoder here: the clip plays muted with
+     * `preload=auto` just far enough to draw frame zero onto a canvas. That
+     * frame becomes the poster (and the palette source) exactly as Codex packs
+     * expect, so a video-only design still has a static fallback.
+     */
+    async function prepareVideo(file) {
+      if (file.size > 16 * 1024 * 1024) throw new Error('视频超过 16 MB')
+      const url = URL.createObjectURL(file)
+      const element = document.createElement('video')
+      element.muted = true
+      element.playsInline = true
+      element.preload = 'auto'
+      element.src = url
+      try {
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('视频加载超时（可能需要 H.264 编码）')), 15000)
+          element.addEventListener('loadeddata', () => {
+            clearTimeout(timer)
+            resolve()
+          }, { once: true })
+          element.addEventListener('error', () => {
+            clearTimeout(timer)
+            reject(new Error('视频无法解码，只支持 H.264 的 MP4'))
+          }, { once: true })
+        })
+        const width = element.videoWidth
+        const height = element.videoHeight
+        if (!width || !height) throw new Error('视频没有画面')
+        const canvas = document.createElement('canvas')
+        const scale = Math.min(1, 2560 / width)
+        canvas.width = Math.max(1, Math.round(width * scale))
+        canvas.height = Math.max(1, Math.round(height * scale))
+        canvas.getContext('2d').drawImage(element, 0, 0, canvas.width, canvas.height)
+        const frame = canvas.toDataURL('image/jpeg', 0.9)
+        const preview = document.createElement('canvas')
+        preview.width = 72
+        preview.height = Math.max(1, Math.round((72 * height) / width))
+        preview.getContext('2d').drawImage(element, 0, 0, preview.width, preview.height)
+        const dataUrl = await readAsDataUrl(file)
+        return {
+          dataUrl,
+          frame,
+          palette: dominantColors(preview),
+          meta: { width, height, durationMs: Math.round((Number.isFinite(element.duration) ? element.duration : 0) * 1000), bytes: file.size },
+        }
+      } finally {
+        element.removeAttribute?.('src')
+        element.load?.()
+        URL.revokeObjectURL(url)
+      }
     }
 
     async function dominantColorsFromUrl(url) {
@@ -2170,6 +2380,16 @@ window.__ModuleLoader__.load({
 .dsks-design-panel strong{font-size:14px}
 .dsks-design-panel span{font-size:12px;opacity:.8}
 .dsks-design-note{margin:0;font-size:12px;color:var(--dsw-alias-label-secondary)}
+.dsks-media-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start}
+.dsks-media{position:relative;flex:1 1 140px;min-width:0;border-radius:8px;overflow:hidden;border:1px solid var(--dsw-alias-border-l2)}
+.dsks-media-image{display:block;width:100%;max-height:140px;object-fit:cover}
+.dsks-media-tag{position:absolute;left:6px;bottom:6px;display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;line-height:16px}
+.dsks-field{display:flex;align-items:center;gap:10px}
+.dsks-field-label{flex:none;font-size:12px;color:var(--dsw-alias-label-secondary)}
+.dsks-select{flex:1;min-width:0;padding:7px 10px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px}
+.dsks-select:focus{outline:none;border-color:var(--dsw-alias-brand-primary)}
+.dsks-advanced summary{margin-bottom:6px}
+.dsks-warn{color:var(--dsw-alias-state-warn-primary)}
 .dsks-video-layer{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
 .dsks-video-layer video{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .45s ease-out}
 .dsks-video-layer[data-ready] video{opacity:1}
@@ -2198,7 +2418,7 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots'],
       /** Test seam: the row and detail card are unreachable from a static render. */
-      __components: { SkinRow, SkinDetail, ImportDialog, Switch, VideoSettingsDialog },
+      __components: { SkinRow, SkinDetail, ImportDialog, Switch, VideoSettingsDialog, DesignDialog },
       apply(ctx) {
         const runtime = createRuntime(ctx)
         ctx.effect(() => runtime.start())

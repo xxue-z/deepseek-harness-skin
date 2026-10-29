@@ -191,6 +191,22 @@ const skin = {
 let activeId = 'skin.test'
 let videoSettings = { autoplay: true, muted: true }
 
+const modelCatalog = {
+  default: { provider: 'qwen-token-plan-cn', model: 'deepseek-v4.1-flash' },
+  groups: [
+    {
+      id: 'qwen-token-plan-cn',
+      name: 'Qwen Token Plan',
+      models: [
+        { provider: 'qwen-token-plan-cn', providerName: 'Qwen Token Plan', id: 'deepseek-v4.1-flash', name: 'DeepSeek-V4.1-Flash', images: 'yes' },
+        { provider: 'qwen-token-plan-cn', providerName: 'Qwen Token Plan', id: 'qwen3-max', name: 'Qwen3 Max', images: 'no' },
+      ],
+    },
+  ],
+  failures: [],
+}
+const designCalls = []
+
 const lightSkin = {
   id: 'skin.auto-light',
   name: 'Auto Light',
@@ -225,7 +241,11 @@ globalThis.fetch = async (url, options) => {
   const path = String(url)
   let payload
   if (path.includes('/skin/api/snapshot')) payload = snapshot()
-  else if (path.includes('/skin/api/ping')) payload = { ok: true }
+  else if (path.includes('/skin/api/models')) payload = { ok: true, models: modelCatalog }
+  else if (path.includes('/skin/api/design')) {
+    designCalls.push(JSON.parse(options?.body ?? '{}'))
+    payload = { ok: true, snapshot: snapshot().snapshot, skin: { ...skin, id: 'skin.designed', name: 'Designed' }, usedModel: true, warning: null }
+  } else if (path.includes('/skin/api/ping')) payload = { ok: true }
   else if (path.includes('/skin/api/video-settings')) {
     const patch = JSON.parse(options?.body ?? '{}')
     if (typeof patch.autoplay === 'boolean') videoSettings.autoplay = patch.autoplay
@@ -541,6 +561,39 @@ console.log('render walk (components execute without React DOM)')
     check('import dialog keeps a manual path fallback', JSON.stringify(dialog).includes('import.manual'))
   }
   check('list styles are installed', document.head && styleTags.some((tag) => tag.getAttribute('data-plugin-css') === 'manager' && tag.textContent.includes('.dsks-row-wrap')))
+}
+
+console.log('design dialog')
+{
+  const DesignDialog = exportsModule.__components?.DesignDialog
+  check('design dialog is exported for testing', typeof DesignDialog === 'function')
+  if (typeof DesignDialog === 'function') {
+    const renderDialog = (props) => {
+      const savedCursor = hookCursor
+      const savedStore = hookStore.slice()
+      hookCursor = 0
+      const tree = DesignDialog({ t: (key) => key, runtime: slotRegistrations[0].component({}).props.runtime, base: null, onClose: () => {}, onDone: () => {}, ...props })
+      hookCursor = savedCursor
+      hookStore.length = 0
+      hookStore.push(...savedStore)
+      return tree
+    }
+    const tree = renderDialog({})
+    // The catalog arrives from /skin/api/models after a tick, and the inline
+    // effect only issues the request: re-render once the stores are settled.
+    await flush()
+    const settled = renderDialog({})
+    const text = JSON.stringify(settled)
+    check('design dialog lists a model dropdown', text.includes('"className":"dsks-select"') && text.includes('"type":"select"'))
+    check('the dropdown is grouped by provider', text.includes('"type":"optgroup"') && text.includes('Qwen Token Plan'), text.slice(-400))
+    check('the dropdown marks text-only models', text.includes('design.noImageMark'))
+    check('it offers image and video sources', text.includes('design.image') && text.includes('design.video'))
+    check('image-only, video-only and both are explained', text.includes('design.mediaHint'))
+    check('advanced options hold only the theme name', text.includes('design.advanced') && text.includes('design.namePlaceholder'))
+    // Mood and notes were the brief's own words in three boxes; they are gone.
+    check('the mood and notes inputs are gone', !text.includes('design.moodPlaceholder') && !text.includes('design.notesPlaceholder'))
+    check('the old free-text model inputs are gone', !JSON.stringify(tree).includes('"placeholder":"qwen-token-plan-cn"'))
+  }
 }
 
 console.log(failures === 0 ? '\nall client checks passed' : `\n${failures} client check(s) failed`)

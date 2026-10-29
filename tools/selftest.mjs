@@ -17,6 +17,8 @@ import { contrastRatio, derivePalette, paletteFromText, parseColor } from '../li
 import { readZip } from '../lib/zip.js'
 import { zipSync } from './zip-fixture.mjs'
 import { makeMp4 } from './mp4-fixture.mjs'
+import { createSkinTool } from '../lib/tool.js'
+import { decodeVideoDataUrl } from '../lib/service.js'
 
 let failures = 0
 function check(name, condition, detail = '') {
@@ -230,6 +232,65 @@ console.log('dynamic background')
     })(),
   )
   server.close()
+  rmSync(dir, { recursive: true, force: true })
+}
+
+console.log('design sources')
+{
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-skin-design-'))
+  const store = new SkinStore(join(dir, 'skin'))
+  store.ensure()
+  // A fake LLM registry: the model catalog path and the design path both read it.
+  const llm = {
+    listProviders: () => [
+      { id: 'qwen-token-plan-cn', name: 'Qwen Token Plan' },
+      { id: 'deepseek', name: 'DeepSeek' },
+    ],
+    listModels: async (provider) => {
+      if (provider === 'qwen-token-plan-cn') return [{ id: 'deepseek-v4.1-flash', name: 'DeepSeek-V4.1-Flash' }]
+      if (provider === 'deepseek') return [{ id: 'deepseek-chat', name: 'DeepSeek Chat', inputModalities: ['text'] }]
+      throw new Error('provider is not mounted')
+    },
+    prepareCall: async () => ({ config: {}, inputModalities: ['text', 'image'], stream: () => (async function* () {})() }),
+  }
+  const service = new SkinService({ store, config: { codexDirs: [] }, getLlm: () => llm, getSelection: () => ({ provider: 'qwen-token-plan-cn', model: 'deepseek-v4.1-flash' }) })
+  const models = await service.listModels()
+  check('lists every routable provider', models.groups.length === 2 || models.failures.length === 2, JSON.stringify(models.groups.map((g) => g.id)))
+  check('the default model comes from the chat selection', models.default?.provider === 'qwen-token-plan-cn')
+  const flat = models.groups.flatMap((group) => group.models)
+  check('known image providers are marked', flat.find((entry) => entry.provider === 'qwen-token-plan-cn')?.images === 'yes')
+  check('text-only declarations win', flat.find((entry) => entry.id === 'deepseek-chat')?.images === 'no')
+
+  const image = `data:image/jpeg;base64,${Buffer.from('fake jpeg').toString('base64')}`
+  const mp4 = makeMp4({ width: 1600, height: 900, durationMs: 6000 })
+  const video = `data:video/mp4;base64,${mp4.toString('base64')}`
+
+  const imageOnly = await service.design({ description: '温柔粉色', imageDataUrl: image })
+  check('image only becomes a static theme', imageOnly.skin.video === null && imageOnly.skin.wallpaper !== null)
+  const videoOnly = await service.design({ description: '夏日', imageDataUrl: image, videoDataUrl: video })
+  check('video is stored with the theme', videoOnly.skin.video?.width === 1600 && videoOnly.skin.video?.durationMs === 6000, JSON.stringify(videoOnly.skin.video))
+  check('video bytes land on disk', store.videoPath(videoOnly.skin.id) !== null)
+  check('the frame stays the poster', videoOnly.skin.wallpaper !== null)
+  const both = await service.design({ description: '春天', imageDataUrl: image, videoDataUrl: video })
+  check('image and video coexist', both.skin.wallpaper !== null && both.skin.video !== null)
+  const broken = await service.design({ description: '坏视频', imageDataUrl: image, videoDataUrl: 'data:video/mp4;base64,' + Buffer.from('not an mp4').toString('base64') })
+  check('an unusable video falls back to static', broken.skin.video === null && /按静态主题生成/.test(broken.warning ?? ''), String(broken.warning))
+  const withDetails = await service.design({ description: '清爽', imageDataUrl: image, details: { name: '自定义名', mood: '清爽', notes: '高对比' } })
+  check('only the theme name is kept from the details', JSON.stringify(withDetails.skin.origin?.details) === JSON.stringify({ name: '自定义名' }), JSON.stringify(withDetails.skin.origin))
+  check('the brief itself still comes from the description', /清爽/.test(withDetails.skin.description))
+  check('the video data URL parser refuses non-MP4 bytes', decodeVideoDataUrl(`data:video/mp4;base64,${Buffer.from('x').toString('base64')}`) === null)
+  check('the video data URL parser refuses an image', decodeVideoDataUrl(image) === null)
+
+  const tool = createSkinTool(service)
+  const imagePath = join(dir, 'frame.jpg')
+  writeFileSync(imagePath, Buffer.from('frame bytes'))
+  const videoPath = join(dir, 'clip.mp4')
+  writeFileSync(videoPath, mp4)
+  const toolResult = await tool.execute({ action: 'design', description: '从文件生成', imagePath, videoPath, name: '来自工具' })
+  check('the tool designs from files on disk', /动态背景 1600×900/.test(toolResult.text), String(toolResult.text))
+  const toolSkin = service.snapshot().themes.find((entry) => entry.id === toolResult.ids[0])
+  check('the tool video is stored', toolSkin?.video?.width === 1600)
+  check('the tool details reach the skin', toolSkin?.origin?.details?.name === '来自工具')
   rmSync(dir, { recursive: true, force: true })
 }
 

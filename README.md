@@ -27,8 +27,14 @@ plugin_manager install_bundle  C:\path\to\deepseek-harness-skin
 - **扫描本机主题**：读取 `%LOCALAPPDATA%\CodexDreamSkin\themes\*`（macOS 为
   `~/Library/Application Support/CodexDreamSkin/themes`），把每个主题转换入库。
 - **导入 ZIP / 从文件夹导入**：Codex 主题包（`theme.json` + `theme.css` + 壁纸）直接拖进来。
-- **AI 设计**：写一句描述、可选放一张图 → 生成草稿并入库；生成失败会自动回退到离线配色，
-  界面会明确标注。
+- **AI 设计**：写一句描述，可再附**一张图片**和**一段 MP4**（各一份），生成草稿并入库：
+  - 只给图片 → 静态主题，图片就是壁纸；
+  - 只给视频 → 动态主题，浏览器抽视频第一帧当壁纸与静态回退，视频循环播放；
+  - 两个都给 → 图片当壁纸、视频当动态背景。
+  「设计模型」是下拉框，读的是宿主实时的模型目录（与聊天框同一个注册表，按供应商分组）；
+  遇到不能看图的模型会自动只发文字并提示。高级里只有一项「主题名」（决定皮肤的 `name`）；
+  氛围和额外要求直接写进描述——它们是同一句话，拆成三个输入框只会让模型分不清主次。
+  生成失败会自动回退到离线配色，界面会明确标注。
 - 卡片详情里可以调 **壁纸可见度**（0–100%，等价于 Codex 的 transparency），
   可以「按壁纸重新取色」（给没有 `colors` 的 preset 补配色）、导出 JSON、删除。
 - **动态主题设置**：页头按钮，弹窗里三行——自动播放、静音、播放/暂停快捷键。
@@ -44,6 +50,7 @@ plugin_manager install_bundle  C:\path\to\deepseek-harness-skin
 skin_theme {"action":"list"}
 skin_theme {"action":"import","path":"C:\\Users\\you\\AppData\\Local\\CodexDreamSkin\\themes\\studio.crimson-mecha-nova"}
 skin_theme {"action":"design","description":"赛博霓虹，暗紫底色"}
+skin_theme {"action":"design","description":"夏日午后，清爽一点，文字对比度要高","videoPath":"D:\\clips\\summer.mp4","name":"夏日"}
 skin_theme {"action":"apply","id":"skin.crimson-mecha-nova"}
 skin_theme {"action":"transparency","id":"skin.crimson-mecha-nova","transparency":45}
 ```
