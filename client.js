@@ -45,6 +45,8 @@ window.__ModuleLoader__.load({
         'action.close': '关闭',
         'action.generate': '生成主题',
         'action.recolor': '按壁纸重新取色',
+        'action.rename': '重命名',
+        'action.save': '保存',
         'action.confirmDelete': '删除皮肤',
         'state.loading': '正在读取皮肤库…',
         'state.empty': '还没有皮肤。扫描本机的 Codex 主题，或导入一个主题包。',
@@ -128,6 +130,12 @@ window.__ModuleLoader__.load({
         'notice.applied': '已应用',
         'notice.deactivated': '已关闭皮肤',
         'notice.saved': '已保存',
+        'notice.renamed': '已重命名',
+        'rename.title': '重命名主题',
+        'rename.desc': '只改显示名称，id 和文件都不动；正在使用的主题也可以改。',
+        'rename.placeholder': '新的主题名称',
+        'rename.empty': '名称不能为空',
+        'rename.rescanHint': '从 Codex 主题导入的皮肤，下次「扫描本机主题」会用主题包里的名字覆盖回去。',
         'notice.importedCount': '导入 {n} 个',
         'notice.skippedCount': '跳过 {n} 个',
         'notice.noThemes': '没有找到新的主题',
@@ -180,6 +188,8 @@ window.__ModuleLoader__.load({
         'action.close': 'Close',
         'action.generate': 'Generate',
         'action.recolor': 'Recolour from wallpaper',
+        'action.rename': 'Rename',
+        'action.save': 'Save',
         'action.confirmDelete': 'Delete skin',
         'state.loading': 'Reading the skin library…',
         'state.empty': 'No skins yet. Scan the local Codex themes, or import a pack.',
@@ -263,6 +273,12 @@ window.__ModuleLoader__.load({
         'notice.applied': 'Applied',
         'notice.deactivated': 'Skin turned off',
         'notice.saved': 'Saved',
+        'notice.renamed': 'Renamed',
+        'rename.title': 'Rename theme',
+        'rename.desc': 'Only the display name changes; the id and the files stay as they are, and the active theme can be renamed too.',
+        'rename.placeholder': 'New theme name',
+        'rename.empty': 'The name cannot be empty',
+        'rename.rescanHint': 'A skin imported from a Codex pack takes the pack’s own name back the next time you scan local themes.',
         'notice.importedCount': '{n} imported',
         'notice.skippedCount': '{n} skipped',
         'notice.noThemes': 'No new themes found',
@@ -557,6 +573,7 @@ window.__ModuleLoader__.load({
       refreshVideo: (id) => request('refresh-video', { method: 'POST', body: JSON.stringify({ id }) }),
       delete: (id) => request('delete', { method: 'POST', body: JSON.stringify({ id }) }),
       recolor: (id, palette) => request('recolor', { method: 'POST', body: JSON.stringify({ id, palette }) }),
+      rename: (id, name) => request('rename', { method: 'POST', body: JSON.stringify({ id, name }) }),
       design: (input) => request('design', { method: 'POST', body: JSON.stringify(input) }),
       models: () => request('models'),
       exportTheme: (id) => request('export', { method: 'POST', body: JSON.stringify({ id }) }),
@@ -1234,6 +1251,7 @@ window.__ModuleLoader__.load({
       play: 'M8 5v14l11-7z',
       pause: 'M9 5v14M15 5v14',
       chevron: 'M8 10l4 4 4-4',
+      edit: 'M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3zM14.5 7.5l3 3',
     }
 
     function Icon({ name, size = 16 }) {
@@ -1568,6 +1586,7 @@ window.__ModuleLoader__.load({
                   onExport: () => onExport(skin.id),
                   onRecolor: () => onRecolor(skin),
                   onAttachVideo: () => onAttachVideo(skin),
+                  onRename: () => setDialog('rename'),
                   onTransparency: (value) => onTransparencyInput(skin, value),
                   onReset: () => onResetTransparency(skin),
                 }),
@@ -1583,6 +1602,18 @@ window.__ModuleLoader__.load({
                 h(Button, { key: 'cancel', onClick: () => setDialog(null) }, t('action.cancel')),
                 h(Button, { key: 'delete', variant: 'danger', busy: busy === 'delete', onClick: () => onDelete(selected.id) }, t('action.delete')),
               ],
+            })
+          : null,
+        dialog === 'rename' && selected
+          ? h(RenameDialog, {
+              t,
+              skin: selected,
+              onClose: () => setDialog(null),
+              onDone: (payload) => {
+                if (payload.snapshot) runtime.applySnapshot(payload.snapshot)
+                setDialog(null)
+                setNotice({ kind: 'success', text: t('notice.renamed') })
+              },
             })
           : null,
         dialog === 'about'
@@ -1625,7 +1656,7 @@ window.__ModuleLoader__.load({
      * card directly beneath it; the page keeps a single open row, so opening
      * one collapses the previous one.
      */
-    function SkinRow({ skin, active, open, t, busy, draftTransparency, onToggle, onApply, onDeactivate, onDelete, onExport, onRecolor, onAttachVideo, onTransparency, onReset }) {
+    function SkinRow({ skin, active, open, t, busy, draftTransparency, onToggle, onApply, onDeactivate, onDelete, onExport, onRecolor, onAttachVideo, onRename, onTransparency, onReset }) {
       return h(
         'div',
         { className: 'dsks-row-wrap', 'data-open': open ? '' : undefined, 'data-active': active ? '' : undefined },
@@ -1673,6 +1704,7 @@ window.__ModuleLoader__.load({
                 onExport,
                 onRecolor,
                 onAttachVideo,
+                onRename,
                 onTransparency,
                 onReset,
                 onClose: onToggle,
@@ -1683,7 +1715,7 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function SkinDetail({ skin, active, t, busy, draftTransparency, onApply, onDeactivate, onDelete, onExport, onRecolor, onAttachVideo, onTransparency, onReset, onClose, compact = false }) {
+    function SkinDetail({ skin, active, t, busy, draftTransparency, onApply, onDeactivate, onDelete, onExport, onRecolor, onAttachVideo, onRename, onTransparency, onReset, onClose, compact = false }) {
       const transparency = draftTransparency ?? skin.transparency
       const codex = skin.codex
       const head = compact
@@ -1768,6 +1800,7 @@ window.__ModuleLoader__.load({
           'div',
           { className: 'dsks-detail-actions' },
           active ? h(Button, { variant: 'secondary', onClick: onDeactivate }, t('action.deactivate')) : h(Button, { variant: 'primary', busy: busy === 'apply', onClick: onApply }, t('action.apply')),
+          onRename ? h(Button, { icon: 'edit', onClick: onRename, busy: busy === 'rename' }, t('action.rename')) : null,
           skin.origin?.kind === 'codex-import' && skin.wallpaper ? h(Button, { onClick: onRecolor, busy: busy === 'recolor' }, t('action.recolor')) : null,
           codex?.video && !skin.video && onAttachVideo ? h(Button, { icon: 'play', onClick: onAttachVideo, busy: busy === 'attachVideo' }, t('action.attachVideo')) : null,
           h(Button, { icon: 'download', onClick: onExport, busy: busy === 'export' }, t('action.export')),
@@ -2020,6 +2053,66 @@ window.__ModuleLoader__.load({
           ),
           skin?.video ? h(Button, { icon: playing ? 'pause' : 'play', onClick: toggle }, playing ? t('video.pause') : t('video.play')) : null,
         ),
+      )
+    }
+
+    /**
+     * Rename one skin.
+     *
+     * Only the display name changes; the id and the stored files stay put, so
+     * this works on the active skin too. A rescan of the source folder rewrites
+     * the document from the pack, and the hint says so instead of letting the
+     * name quietly revert.
+     */
+    function RenameDialog({ t, skin, onClose, onDone }) {
+      const [name, setName] = useState(() => skin.name ?? '')
+      const [busy, setBusy] = useState(false)
+      const [error, setError] = useState(null)
+      const trimmed = name.trim()
+      const save = async () => {
+        if (trimmed === '') {
+          setError(t('rename.empty'))
+          return
+        }
+        if (trimmed === skin.name) {
+          onClose()
+          return
+        }
+        setBusy(true)
+        setError(null)
+        try {
+          onDone(await api.rename(skin.id, trimmed))
+        } catch (failure) {
+          setError(failure instanceof Error ? failure.message : String(failure))
+          setBusy(false)
+        }
+      }
+      return h(
+        Dialog,
+        {
+          t,
+          title: t('rename.title'),
+          description: t('rename.desc'),
+          onClose,
+          footer: [
+            h(Button, { key: 'cancel', disabled: busy, onClick: onClose }, t('action.cancel')),
+            h(Button, { key: 'save', variant: 'primary', busy, disabled: trimmed === '' || busy, onClick: save }, t('action.save')),
+          ],
+        },
+        h('input', {
+          className: 'dsks-input',
+          value: name,
+          autoFocus: true,
+          maxLength: 120,
+          placeholder: t('rename.placeholder'),
+          disabled: busy,
+          onChange: (event) => setName(event.target.value),
+          onKeyDown: (event) => {
+            if (event.key === 'Enter') save()
+          },
+        }),
+        skin.origin?.kind === 'codex-import' ? h('p', { className: 'dsks-hint' }, t('rename.rescanHint')) : null,
+        error ? h('p', { className: 'dsks-error' }, error) : null,
       )
     }
 
@@ -2639,7 +2732,7 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots'],
       /** Test seam: the row and detail card are unreachable from a static render. */
-      __components: { SkinRow, SkinDetail, ImportDialog, Switch, VideoSettingsDialog, DesignDialog, AboutDialog },
+      __components: { SkinRow, SkinDetail, ImportDialog, Switch, VideoSettingsDialog, DesignDialog, AboutDialog, RenameDialog },
       apply(ctx) {
         const runtime = createRuntime(ctx)
         ctx.effect(() => runtime.start())

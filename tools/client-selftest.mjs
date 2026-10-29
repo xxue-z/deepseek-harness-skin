@@ -508,6 +508,7 @@ console.log('render walk (components execute without React DOM)')
       onExport: () => {},
       onRecolor: () => {},
       onAttachVideo: () => {},
+      onRename: () => {},
       onTransparency: () => {},
       onReset: () => {},
     }
@@ -554,6 +555,29 @@ console.log('render walk (components execute without React DOM)')
       const text = JSON.stringify(legacy)
       check('a legacy skin explains the missing video', text.includes('video.missingHint'))
       check('a legacy skin offers the attach action', text.includes('action.attachVideo'))
+      check('every skin offers rename', text.includes('action.rename'))
+    }
+
+    const RenameDialog = exportsModule.__components?.RenameDialog
+    check('rename dialog is exported for testing', typeof RenameDialog === 'function')
+    if (typeof RenameDialog === 'function') {
+      const renderRename = (props) => {
+        const cursor = hookCursor
+        const store = hookStore.slice()
+        hookCursor = 0
+        hookStore.length = 0
+        const dialog = RenameDialog({ t: (key) => key, skin, onClose: () => {}, onDone: () => {}, ...props })
+        hookCursor = cursor
+        hookStore.length = 0
+        hookStore.push(...store)
+        return JSON.stringify(dialog)
+      }
+      const dialogText = renderRename({})
+      check('rename dialog starts from the current name', dialogText.includes('"value":"Test Skin"'), dialogText.slice(0, 200))
+      check('rename dialog offers save', dialogText.includes('action.save'))
+      check('an imported skin warns about rescans', dialogText.includes('rename.rescanHint'))
+      const generated = renderRename({ skin: { ...skin, origin: { kind: 'generated' } } })
+      check('a generated skin has no rescan warning', !generated.includes('rename.rescanHint'))
     }
   }
   // The import dialog opens the OS picker; it must render before any path
