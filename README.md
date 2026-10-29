@@ -11,17 +11,69 @@
 
 ## 安装
 
-从 [Releases](https://github.com/xxue-z/deepseek-harness-skin/releases) 下载 `deepseek-harness-skin-vX.Y.Z.tar.gz`，
-解压到一个独立目录（例如 `D:\apps\dsh-skin`），然后在 Harness 会话里：
+包名（也是加载器解析的模块名）是 **`@xxue-z/dsh-skin`**：scope 属于作者本人，避免和别的插件重名。
+插件用宿主自带的 `plugin_manager` 安装，**装的是目录**；Harness 按 `package.json` 的 `name`
+去 profile 的 `node_modules` 里解析它，所以「装哪个名字」和「代码里叫什么」必须一致。
+
+### 推荐：从 Release 附件安装
 
 ```bash
-plugin_manager install_bundle  D:\apps\dsh-skin
+# 1. 从 Releases 下载 deepseek-harness-skin-vX.Y.Z.tar.gz 并解压到一个固定目录
+#    例如 C:\ProgramCustom\Tool\dsh-skin-1.0.7
+#    解压后该目录里应当直接有 package.json / index.js / lib/，没有多余的一层
+
+# 2. 在 Harness 会话里安装
+plugin_manager install_bundle  C:\ProgramCustom\Tool\dsh-skin-1.0.7
 ```
 
-包名（也是加载器解析的模块名）是 **`@xxue-z/dsh-skin`**：scope 属于作者本人，避免和别的插件重名。
+附件的结构和内容由 CI 按 `package.json` 的 `files` 生成，只有运行时文件
+（入口、`lib/`、`locale/`、patch、图标）和 README/CHANGELOG，并附带 `.sha256` 可校验。
 
-安装后需要**重启一次 DeepSeek Harness**：Host 半走 Loader 加载，Web 半随模块图下发；重启后刷新页面。
-直接克隆仓库开发时，把目录用 `link:` 挂进 profile 即可，同样是重启后生效。
+### 也可以：用仓库地址安装
+
+插件管理器的输入框接受 `https://github.com/xxue-z/deepseek-harness-skin` 这类仓库地址，
+它会转换成 `github:xxue-z/deepseek-harness-skin`，由 pnpm 拉取**某个提交的快照**。这条路能用，
+但要知道它的含义：
+
+- 拉的是**提交快照**，不是发布版本；版本号取自仓库里的 `package.json`，未必对应某个标签；
+- pnpm 会做内容哈希，但没有我们发布的 `.sha256` 和 Release 说明；
+- 装完后 `node_modules/@xxue-z/dsh-skin` 是一份**真实拷贝**，与 Release 方式互不相干。
+
+两种方式选一个即可，**不要对同一个包名同时保留两份来源**，否则加载器和 pnpm 会指向不同目录。
+
+### 安装之后
+
+需要**重启一次 DeepSeek Harness**：Host 半走 Loader 加载，Web 半随模块图下发；重启后刷新页面。
+设置 →「主题皮肤」页头显示版本号，点开可检查更新。
+
+## 升级
+
+| 当前安装方式 | 做法 |
+|---|---|
+| Release 目录 | 解压新版本到**另一个目录** → 卸载旧条目 → `install_bundle` 新目录 → 重启 |
+| 仓库地址 | 在插件管理器里卸载后重新安装，或指定新版本，然后重启 |
+| 设置页「下载并更新」 | 直接点，会替换插件目录并刷新页面，随后重启一次应用 |
+
+**升级到改了包名的版本**（例如从 `@local/dsh-skin` 到 `@xxue-z/dsh-skin`）时，必须先卸载旧名字那条：
+loader 里残留的旧条目会继续去找一个已不存在的目录，表现为
+`failed to import: ENOENT ... index.js`。
+
+## 卸载
+
+在插件管理器里点「卸载」，或在 Harness 会话里：
+
+```bash
+plugin_manager remove_bundle  @xxue-z/dsh-skin
+```
+
+卸载后再删掉你解压出来的安装目录，并**重启一次应用**让 loader 释放那条配置。
+卸载**不会**删除皮肤数据（`<DSH_HOME>/skin/`），重装后主题会直接回来。
+
+### 插件显示「包元信息错误 / ENOENT」
+
+这是 loader 里那条配置指向的目录**已经不存在或为空**（常见于手动删掉安装目录、或换过安装路径）。
+处理：先把这条卸载掉（界面里的「卸载」或 `plugin_manager remove_bundle`），再按上面的步骤重新安装，
+最后重启。只重装不卸载会留下两条指向不同目录的配置，报错依旧。
 
 ## 使用
 
