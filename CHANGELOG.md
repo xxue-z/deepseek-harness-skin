@@ -1,12 +1,21 @@
 # 更新日志
 
-版本号与 `package.json` 的 `version` 一致；同一个版本对应一个 git 标签（`v1.0.6`）和一次 GitHub Release。
+版本号与 `package.json` 的 `version` 一致；同一个版本对应一个 git 标签（`v1.0.7`）和一次 GitHub Release。
 每次发布更新三处：这里加一节、`package.json` 提升版本、打标签推送——剩下的由 GitHub Actions 自动完成。
 
-包名（也是加载器解析的模块名）是 `@local/dsh-skin`：`@local/` 说明它装在本地目录、不在 npm 上。
-1.0.5 曾短暂改成 `deepseek-harness-skin`，1.0.6 改回来了。
+包名（也是加载器解析的模块名）是 `@xxue-z/dsh-skin`：scope 属于作者本人，既避免与其它插件重名，
+也表明它不从 npm 公共源安装。改名历史：`@local/dsh-skin` → `deepseek-harness-skin`（1.0.5，改了一半导致加载失败）
+→ `@local/dsh-skin`（1.0.6）→ `@xxue-z/dsh-skin`（1.0.7）。
 
 该插件从桌面版自带的那个版本起步，版本号记作 `1.0.1`。
+
+## 1.0.7 — 2026-10-29
+
+**包名定为 `@xxue-z/dsh-skin`**
+
+- 带上作者的 scope，避免与其它 `dsh-skin` 同名插件在同一 profile 内抢占 `node_modules/<包名>` 和浏览器模块 id（后者重复注册会直接抛 `duplicate factory registration` 并终止加载）。
+- 同步位置：`package.json`（`name` 与 `pkg.name`）、`cordis.patch.yml`、`index.js` 的 `export const name`、`client.js` 的模块 id 与 `PLUGIN_ID`、`lib/service.js` 的客户端模块图诊断。行 id 仍是 `dsh-skin`，旧的配置覆盖继续有效。
+- 升级前请先卸载旧名的安装（`plugin_manager` 里删掉那条，或手动移除 `node_modules/@local/dsh-skin`），否则旧 loader 行会去找一个已不存在的包。
 
 ## 1.0.6 — 2026-10-29
 

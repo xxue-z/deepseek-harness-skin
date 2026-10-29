@@ -1,5 +1,5 @@
 /**
- * @local/dsh-skin — Host half.
+ * @xxue-z/dsh-skin — Host half.
  *
  * Owns the skin library on disk, serves the `/skin` HTTP surface the Web client
  * calls, and registers the `skin_theme` agent tool. The Web half (client.js)
@@ -18,7 +18,7 @@ import { checkForUpdate, readVersion } from './lib/update.js'
 
 // Must match package.json `name` and the `name` in cordis.patch.yml: the loader
 // resolves that row through node_modules, so a mismatch is ERR_MODULE_NOT_FOUND.
-export const name = '@local/dsh-skin'
+export const name = '@xxue-z/dsh-skin'
 
 /** The package directory this module was loaded from. */
 const PACKAGE_DIR = dirname(fileURLToPath(import.meta.url))

@@ -18,7 +18,7 @@
 plugin_manager install_bundle  D:\apps\dsh-skin
 ```
 
-包名（也是加载器解析的模块名）是 **`@local/dsh-skin`**；`@local/` 表示它装在本地目录、不在 npm 上。
+包名（也是加载器解析的模块名）是 **`@xxue-z/dsh-skin`**：scope 属于作者本人，避免和别的插件重名。
 
 安装后需要**重启一次 DeepSeek Harness**：Host 半走 Loader 加载，Web 半随模块图下发；重启后刷新页面。
 直接克隆仓库开发时，把目录用 `link:` 挂进 profile 即可，同样是重启后生效。
