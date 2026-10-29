@@ -2658,17 +2658,34 @@ window.__ModuleLoader__.load({
           document.head.append(style)
           return () => style.remove()
         })
-        ctx.slots.inject('settings.section', () =>
-          ctx.slots.register(
-            {
-              name: 'settings.section',
-              id: 'skin',
-              order: 12,
-              label: () => translate(ctx, 'section.title'),
-            },
-            () => h(SkinPage, { runtime }),
-          ),
-        )
+        try {
+          ctx.slots.inject('settings.section', () =>
+            ctx.slots.register(
+              {
+                name: 'settings.section',
+                id: 'skin',
+                order: 12,
+                label: () => translate(ctx, 'section.title'),
+              },
+              () => h(SkinPage, { runtime }),
+            ),
+          )
+        } catch (error) {
+          // A failed registration used to vanish silently: the section simply
+          // was not there after a restart, with nothing on screen to say why.
+          console.error('[dsh-skin] 注册设置分区失败', error)
+          try {
+            if (typeof document !== 'undefined' && document.body) {
+              const banner = document.createElement('div')
+              banner.className = 'dsks-boot-error'
+              banner.setAttribute('data-plugin', PLUGIN_ID)
+              banner.textContent = `主题皮肤加载失败：${error instanceof Error ? error.message : String(error)}`
+              document.body.append(banner)
+            }
+          } catch {
+            /* the page is unusable anyway */
+          }
+        }
       },
     }
 
