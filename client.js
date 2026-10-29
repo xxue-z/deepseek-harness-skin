@@ -167,6 +167,42 @@ window.__ModuleLoader__.load({
         'video.missingHint': '原主题带 MP4，可点「补全动态背景」',
         'action.attachVideo': '补全动态背景',
         'notice.videoAttached': '已补全动态背景',
+        /* advanced settings: folder playlist */
+        'playlist.advanced': '高级设置',
+        'playlist.advancedHint': '视频列表：按文件夹顺序播放一组视频，覆盖当前主题自带的动态背景。',
+        'playlist.enable': '启动注入视频列表',
+        'playlist.enableHint': '启用后向当前主题注入视频标签（静态主题也一样）；关闭即移除，恢复主题原样。每次启动客户端都会自动关闭，需要时用快捷键或在设置里再打开。',
+        'playlist.shortcut': '视频列表开关',
+        'playlist.shortcutHint': '任意界面按一下即可开关；也可以在「设置 → 快捷键」里改键位。',
+        'playlist.folder': '视频列表文件夹',
+        'playlist.folderHint': '按文件夹里的顺序循环播放；新增或删除文件会自动生效。',
+        'playlist.folderEmpty': '还没有选择文件夹',
+        'playlist.choose': '选择…',
+        'playlist.open': '打开',
+        'playlist.speed': '播放倍速',
+        'playlist.pip': '小窗口播放（画中画）',
+        'playlist.pipHint': '把背景视频放进系统级的小窗口；切换或关闭视频列表时自动退出画中画。',
+        'playlist.pipUnsupported': '当前浏览器不支持画中画，此项不可用。',
+        'playlist.pipUnsupportedShort': '当前浏览器不支持画中画',
+        'playlist.history': '历史播放文件夹',
+        'playlist.historyHint': '双击直接使用该文件夹。',
+        'playlist.historyEmpty': '还没有历史记录，选择一次文件夹后会出现在这里。',
+        'playlist.historyUse': '使用',
+        'playlist.historyCurrent': '当前',
+        'playlist.position': '播放进度',
+        'playlist.positionIdle': '已关闭',
+        'playlist.positionWaiting': '先选择一个视频列表文件夹',
+        'playlist.positionNoFolder': '未选择文件夹',
+        'playlist.positionEmpty': '这个文件夹里没有视频文件',
+        'playlist.positionOf': '第 {i}/{n} 个 · {name}',
+        'playlist.positionError': '无法读取文件夹：{message}',
+        'playlist.prev': '上一个',
+        'playlist.next': '下一个',
+        'playlist.none': '还没有播放',
+        'notice.playlistOn': '视频列表已开启',
+        'notice.playlistOff': '视频列表已关闭',
+        'notice.playlistEmpty': '文件夹里没有视频文件',
+        'notice.playlistFailed': '无法读取这个文件夹',
       },
       en: {
         'section.title': 'Theme Skins',
@@ -310,6 +346,42 @@ window.__ModuleLoader__.load({
         'video.missingHint': 'The pack ships an MP4 — use "Attach video"',
         'action.attachVideo': 'Attach video',
         'notice.videoAttached': 'Background video attached',
+        /* advanced settings: folder playlist */
+        'playlist.advanced': 'Advanced settings',
+        'playlist.advancedHint': 'Video list: play a folder in order, replacing the theme’s own background video.',
+        'playlist.enable': 'Inject the video list on start',
+        'playlist.enableHint': 'Adds a video to the current theme — static themes too — and removes it again when switched off. It always starts switched off after a client restart; use the shortcut or this switch to turn it back on.',
+        'playlist.shortcut': 'Video list shortcut',
+        'playlist.shortcutHint': 'Press it from anywhere; you can rebind it in Settings → Shortcuts.',
+        'playlist.folder': 'Video folder',
+        'playlist.folderHint': 'Plays in the folder’s own order and picks up added or removed files.',
+        'playlist.folderEmpty': 'No folder chosen yet',
+        'playlist.choose': 'Choose…',
+        'playlist.open': 'Open',
+        'playlist.speed': 'Playback speed',
+        'playlist.pip': 'Picture-in-picture',
+        'playlist.pipHint': 'Puts the background video in a system window; leaving the video list exits it.',
+        'playlist.pipUnsupported': 'This browser does not support picture-in-picture.',
+        'playlist.pipUnsupportedShort': 'Picture-in-picture is unsupported here',
+        'playlist.history': 'Recent folders',
+        'playlist.historyHint': 'Double-click a folder to use it again.',
+        'playlist.historyEmpty': 'Nothing here yet — folders appear after you choose them.',
+        'playlist.historyUse': 'Use',
+        'playlist.historyCurrent': 'Current',
+        'playlist.position': 'Playback position',
+        'playlist.positionIdle': 'Off',
+        'playlist.positionWaiting': 'Choose a video folder first',
+        'playlist.positionNoFolder': 'No folder selected',
+        'playlist.positionEmpty': 'No video files in this folder',
+        'playlist.positionOf': '{i}/{n} · {name}',
+        'playlist.positionError': 'Cannot read the folder: {message}',
+        'playlist.prev': 'Previous',
+        'playlist.next': 'Next',
+        'playlist.none': 'Not started',
+        'notice.playlistOn': 'Video list on',
+        'notice.playlistOff': 'Video list off',
+        'notice.playlistEmpty': 'No video files in that folder',
+        'notice.playlistFailed': 'Cannot read that folder',
       },
     }
 
@@ -585,6 +657,14 @@ window.__ModuleLoader__.load({
       deactivate: () => request('deactivate', { method: 'POST', body: '{}' }),
       transparency: (id, value) => request('transparency', { method: 'POST', body: JSON.stringify({ id, value }) }),
       videoSettings: (patch) => request('video-settings', { method: 'POST', body: JSON.stringify(patch ?? {}) }),
+      /* folder playlist */
+      videos: (folder) => request(`videos${folder ? `?folder=${encodeURIComponent(folder)}` : ''}`),
+      playlistSettings: (patch) => request('playlist-settings', { method: 'POST', body: JSON.stringify(patch ?? {}) }),
+      setPlaylistEnabled: (enabled) => request('playlist-enabled', { method: 'POST', body: JSON.stringify({ enabled }) }),
+      trackPlaylist: (state) => request('playlist-track', { method: 'POST', body: JSON.stringify(state ?? {}) }),
+      useHistory: (path) => request('playlist-history', { method: 'POST', body: JSON.stringify({ path }) }),
+      pickFolder: (initial) => request('pick-folder', { method: 'POST', body: JSON.stringify({ initial: initial ?? '', description: '选择视频列表文件夹' }) }),
+      openFolder: (path) => request('open-folder', { method: 'POST', body: JSON.stringify({ path }) }),
       refreshVideo: (id) => request('refresh-video', { method: 'POST', body: JSON.stringify({ id }) }),
       delete: (id) => request('delete', { method: 'POST', body: JSON.stringify({ id }) }),
       recolor: (id, palette) => request('recolor', { method: 'POST', body: JSON.stringify({ id, palette }) }),
@@ -618,27 +698,113 @@ window.__ModuleLoader__.load({
       /* dynamic background: one fixed <video> layer behind #root           */
       /* ---------------------------------------------------------------- */
 
-      let videoSettings = { autoplay: true, muted: true }
-      const video = { layer: null, element: null, skinId: null, failed: false, userPaused: false, manualStarted: false, shortcutRegistered: false }
+let videoSettings = { autoplay: true, muted: true }
+      /**
+       * The one background video of the app.
+       *
+       * A theme's own MP4 and a folder-playlist clip never coexist: whichever
+       * `playbackFor()` names is what this element plays, so the keyboard, the
+       * mute switch, and the teardown path all act on a single element.
+       */
+      const video = {
+        layer: null,
+        element: null,
+        /**
+         * What is mounted: `{ kind: 'theme', skinId }` or
+         * `{ kind: 'playlist', index, url, name, signature }`.
+         */
+        source: null,
+        failed: false,
+        userPaused: false,
+        manualStarted: false,
+        /** Playlist index whose resume point the element still has to seek to. */
+        resumeIndex: null,
+      }
+      /** Shortcut ids this plugin owns, and whether each registered. */
+      const shortcutState = { 'skin.toggleVideo': false, 'skin.togglePlaylist': false }
       let motionQuery = null
       const isMac = typeof navigator !== 'undefined' && /mac/i.test(`${navigator.platform ?? ''} ${navigator.userAgent ?? ''}`)
       const SHORTCUT_ID = 'skin.toggleVideo'
+      const PLAYLIST_SHORTCUT_ID = 'skin.togglePlaylist'
+      /** Same-page resume slot: survives a reload, unlike the Host's switch. */
+      const PLAYLIST_RESUME_KEY = 'dsh-skin.playlist'
 
+      /**
+       * Folder playlist.
+       *
+       * The switch is not stored anywhere durable: the Host answers `enabled`
+       * per process, and a restart flips it back to false on its own.
+       */
+      const playlist = {
+        settings: { folder: '', speed: 1, pictureInPicture: false, history: [] },
+        enabled: false,
+        loading: false,
+        videos: [],
+        order: [],
+        index: 0,
+        /** Seconds into the current clip that were restored, not yet applied. */
+        resumeSecond: 0,
+        tracked: null,
+        error: null,
+      }
+      let trackTimer = null
+      let lastTracked = ''
+
+      /** The skin currently applied, or null when no skin is in use. */
       function currentSkin() {
         return snapshot?.themes?.find((skin) => skin.id === appliedId) ?? null
       }
 
-      /** Keycaps the shortcut row shows, matching the binding in force. */
-      function shortcutKeys() {
+      /**
+       * What the background layer should show right now, or null for nothing.
+       *
+       * This is the single place that decides between "the theme's own MP4" and
+       * "the current clip of the folder playlist"; `mountVideo` and
+       * `toggleVideo` both read it, so the two never stack.
+       *
+       * @returns {{ kind: 'theme', skinId: string, url: string, loop: boolean, playlist: false } | { kind: 'playlist', skinId: string, index: number, url: string, name: string, signature: string, loop: boolean, playlist: true } | null}
+       */
+      function playbackFor(skin) {
+        if (!skin) return null
+        const themeVideo = skin.video?.url ? { url: skin.video.url, loop: true } : null
+        if (playlist.enabled && playlist.videos.length > 0) {
+          const index = Math.min(Math.max(playlist.index, 0), playlist.videos.length - 1)
+          const entry = playlist.videos[index]
+          if (entry?.url) {
+            return {
+              kind: 'playlist',
+              skinId: skin.id,
+              index,
+              url: entry.url,
+              name: entry.name,
+              signature: playlist.order[index] ?? '',
+              loop: playlist.videos.length === 1,
+              playlist: true,
+            }
+          }
+        }
+        if (!themeVideo) return null
+        // The playlist had something and could not produce a clip: say so, but
+        // still paint the theme's own video instead of an empty layer.
+        return { kind: 'theme', skinId: skin.id, url: themeVideo.url, loop: true, playlist: false }
+      }
+
+      /**
+       * Keycaps the shortcut row shows for one command, read back from the
+       * app's registry so a rebind in Settings → Shortcuts shows up here.
+       */
+      function shortcutKeys(id = SHORTCUT_ID) {
         try {
           const service = ctx.get('shortcuts')
           const rows = service?.catalog?.getSnapshot?.() ?? []
-          const row = rows.find((entry) => entry.id === SHORTCUT_ID)
+          const row = rows.find((entry) => entry.id === id)
           if (row && Array.isArray(row.keys) && row.keys.length > 0) return row.keys
         } catch {
           /* no shortcut service in this build */
         }
-        return isMac ? ['⌘', '⌥', 'P'] : ['Ctrl', '+', 'Alt', '+', 'P']
+        const mac = id === PLAYLIST_SHORTCUT_ID ? ['⌘', '⌥', 'L'] : ['⌘', '⌥', 'P']
+        const other = id === PLAYLIST_SHORTCUT_ID ? ['Ctrl', '+', 'Alt', '+', 'L'] : ['Ctrl', '+', 'Alt', '+', 'P']
+        return isMac ? mac : other
       }
 
       function subscribeShortcut(listener) {
@@ -662,9 +828,9 @@ window.__ModuleLoader__.load({
         return Boolean(motionQuery && motionQuery.matches)
       }
 
-      /** Whether the current theme's video should be on screen right now. */
+      /** Whether the current playback source should be on screen right now. */
       function shouldPlay(skin) {
-        if (!skin?.video?.url || video.failed) return false
+        if (!playbackFor(skin) || video.failed) return false
         if (video.userPaused) return false
         if (motionReduced()) return false
         return videoSettings.autoplay || video.manualStarted
@@ -687,6 +853,7 @@ window.__ModuleLoader__.load({
             emit()
           })
         }
+        if (result && typeof result.then === 'function') result.then(() => enterPictureInPicture()).catch(() => {})
       }
 
       function destroyVideo() {
@@ -694,7 +861,8 @@ window.__ModuleLoader__.load({
         const element = video.element
         video.layer = null
         video.element = null
-        video.skinId = null
+        video.source = null
+        video.resumeIndex = null
         if (element) {
           try {
             element.pause()
@@ -737,42 +905,102 @@ window.__ModuleLoader__.load({
           .catch(() => {})
       }
 
-      function mountVideo(skin) {
+      function mountVideo(skin, source) {
         if (typeof document === 'undefined' || typeof document.createElement !== 'function' || document.body === undefined) return
         destroyVideo()
         const layer = document.createElement('div')
         layer.className = 'dsks-video-layer'
         layer.setAttribute('data-plugin', PLUGIN_ID)
+        layer.setAttribute('data-source', source.kind)
         layer.setAttribute('aria-hidden', 'true')
         const element = document.createElement('video')
         element.muted = videoSettings.muted !== false
-        element.loop = true
+        element.loop = source.loop === true
         element.playsInline = true
         element.preload = 'auto'
         element.setAttribute('playsinline', '')
+        // The native controls would sit on top of the UI and pause/seek the
+        // wallpaper; picture-in-picture is enabled separately, by switch.
         element.setAttribute('disablepictureinpicture', '')
         element.setAttribute('disableremoteplayback', '')
         element.setAttribute('aria-hidden', 'true')
+        element.setAttribute('data-source', source.kind)
         const x = Math.round((skin.wallpaper?.focusX ?? 0.5) * 100)
         const y = Math.round((skin.wallpaper?.focusY ?? 0.5) * 100)
         if (element.style) element.style.objectPosition = `${x}% ${y}%`
-        element.src = skin.video.url
+        if (playlist.settings.speed && Number.isFinite(playlist.settings.speed)) element.playbackRate = playlist.settings.speed
+        element.src = source.url
         const veil = document.createElement('span')
         veil.className = 'dsks-video-veil'
         layer.append(element, veil)
-        element.addEventListener('loadeddata', () => layer.setAttribute('data-ready', ''))
+        element.addEventListener('loadeddata', () => {
+          layer.setAttribute('data-ready', '')
+          if (source.kind === 'playlist') applyResumeTime(element)
+        })
         element.addEventListener('error', () => {
           // Ignore the teardown itself: clearing `src` and calling `load()` must
           // not poison the next mount with a permanent failure flag.
           if (video.element !== element) return
+          // A missing or undecodable clip in the playlist is skipped; the theme
+          // video failing means "no background", as before.
+          if (source.kind === 'playlist' && playlist.videos.length > 1) {
+            destroyVideo()
+            emit()
+            advancePlaylist(1)
+            return
+          }
           video.failed = true
           destroyVideo()
           emit()
         })
+        if (source.kind === 'playlist') {
+          element.addEventListener('ended', () => {
+            if (video.element !== element) return
+            advancePlaylist(1)
+          })
+          element.addEventListener('timeupdate', () => {
+            if (video.element !== element) return
+            syncResumeSecond(element)
+          })
+          element.addEventListener('pause', () => {
+            if (video.element !== element) return
+            syncResumeSecond(element)
+            scheduleTrack()
+          })
+          element.addEventListener('play', () => {
+            if (video.element !== element) return
+            enterPictureInPicture()
+          })
+        }
         document.body.append(layer)
         video.layer = layer
         video.element = element
-        video.skinId = skin.id
+        video.source = source.kind === 'playlist' ? { kind: 'playlist', index: source.index, url: source.url, name: source.name, signature: source.signature } : { kind: 'theme', skinId: skin.id }
+        if (source.kind === 'playlist') video.resumeIndex = source.index
+      }
+
+      /** Seek to the restored position once the clip is decodable. */
+      function applyResumeTime(element) {
+        const second = playlist.resumeSecond
+        if (!Number.isFinite(second) || second <= 0) return
+        let duration = Number(element.duration)
+        if (!Number.isFinite(duration) || duration <= 0) duration = Infinity
+        const target = Math.min(second, Math.max(0, duration - 1))
+        try {
+          element.currentTime = target
+        } catch {
+          /* not seekable yet */
+        }
+        playlist.resumeSecond = 0
+        syncResumeSecond(element)
+      }
+
+      /** Mirror the element's position into the playlist state. */
+      function syncResumeSecond(element) {
+        const current = Number(element.currentTime)
+        if (!Number.isFinite(current)) return
+        playlist.resumeSecond = Math.max(0, Math.round(current * 10) / 10)
+        writeLocalResume()
       }
 
       function paintVeil(skin, transparency) {
@@ -784,19 +1012,27 @@ window.__ModuleLoader__.load({
       }
 
       function syncVideo(skin, transparency) {
-        if (!skin?.video?.url || !shouldPlay(skin)) {
+        const source = playbackFor(skin)
+        if (!source || !shouldPlay(skin)) {
           destroyVideo()
           return
         }
-        if (!video.layer || video.skinId !== skin.id) mountVideo(skin)
+        const mounted = video.source
+        const same =
+          mounted &&
+          mounted.kind === source.kind &&
+          (source.kind === 'theme' ? mounted.skinId === source.skinId : mounted.index === source.index && mounted.url === source.url)
+        if (!same) mountVideo(skin, source)
         paintVeil(skin, transparency)
         if (video.element && video.element.paused) attemptPlay(video.element)
+        applyPictureInPicturePreference()
       }
 
-      /** Play/pause for the active theme; also the shortcut's handler. */
+      /** Play/pause whatever background is mounted; also the shortcut's handler. */
       function toggleVideo() {
         const skin = currentSkin()
-        if (!skin?.video) return { playing: false, hasVideo: false }
+        const source = playbackFor(skin)
+        if (!source) return { playing: false, hasVideo: false }
         const playing = Boolean(video.element) && !video.element.paused
         if (playing) {
           video.userPaused = true
@@ -805,6 +1041,8 @@ window.__ModuleLoader__.load({
           } catch {
             /* already detached */
           }
+          if (video.element) syncResumeSecond(video.element)
+          scheduleTrack()
           emit()
           return { playing: false, hasVideo: true }
         }
@@ -843,15 +1081,353 @@ window.__ModuleLoader__.load({
         return next
       }
 
+      /* ---------------------------------------------------------------- */
+      /* folder playlist (advanced settings)                               */
+      /* ---------------------------------------------------------------- */
+
+      /**
+       * Load the folder listing and locate the clip to resume on.
+       *
+       * The Host stores "the third clip" as its name+size+mtime signature, so
+       * adding or removing files ahead of it does not shift the resume point;
+       * a deleted clip falls back to the old index, clamped to the new list.
+       */
+      async function loadPlaylist() {
+        const folder = playlist.settings.folder
+        playlist.error = null
+        if (!folder) {
+          playlist.videos = []
+          playlist.order = []
+          playlist.index = 0
+          playlist.resumeSecond = 0
+          if (playlist.enabled) playlist.error = 'empty'
+          return playlist
+        }
+        playlist.loading = true
+        emit()
+        try {
+          const payload = await api.videos(folder)
+          const videos = Array.isArray(payload.videos) ? payload.videos : []
+          const order = Array.isArray(payload.order) ? payload.order : []
+          const tracked = playlist.tracked
+          let index = 0
+          let second = 0
+          if (tracked && sameFolder(tracked.folder, folder)) {
+            const found = tracked.signature ? order.indexOf(tracked.signature) : -1
+            index = found >= 0 ? found : Math.max(0, Math.min(Number(tracked.index) || 0, Math.max(0, videos.length - 1)))
+            second = found >= 0 || !tracked.signature ? Number(tracked.second) || 0 : 0
+          }
+          // A reload inside the same page may still know where it was, even
+          // when the Host has no position for this folder yet.
+          const local = readLocalResume()
+          if (second <= 0 && local && sameFolder(local.folder, folder)) {
+            const found = local.signature ? order.indexOf(local.signature) : -1
+            if (found >= 0) {
+              index = found
+              second = Number(local.second) || 0
+            }
+          }
+          playlist.videos = videos
+          playlist.order = order
+          playlist.index = index
+          playlist.resumeSecond = Number.isFinite(second) ? second : 0
+          playlist.error = videos.length === 0 ? 'empty' : null
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          playlist.error = message
+          playlist.videos = []
+          playlist.order = []
+        } finally {
+          playlist.loading = false
+        }
+        return playlist
+      }
+
+      function sameFolder(a, b) {
+        if (typeof a !== 'string' || typeof b !== 'string' || a === '' || b === '') return false
+        return a.replace(/[\\/]+$/, '').toLowerCase() === b.replace(/[\\/]+$/, '').toLowerCase()
+      }
+
+      function readLocalResume() {
+        try {
+          const raw = window.sessionStorage?.getItem?.(PLAYLIST_RESUME_KEY)
+          if (!raw) return null
+          const value = JSON.parse(raw)
+          return value && typeof value === 'object' ? value : null
+        } catch {
+          return null
+        }
+      }
+
+      function writeLocalResume() {
+        const entry = playlist.videos[playlist.index]
+        if (!entry) return
+        try {
+          window.sessionStorage?.setItem?.(
+            PLAYLIST_RESUME_KEY,
+            JSON.stringify({ folder: playlist.settings.folder, signature: playlist.order[playlist.index] ?? '', second: playlist.resumeSecond }),
+          )
+        } catch {
+          /* private mode or quota */
+        }
+      }
+
+      /** Report the position to the Host at most once a second. */
+      function scheduleTrack() {
+        if (trackTimer !== null) return
+        trackTimer = setTimeout(() => {
+          trackTimer = null
+          void trackPlaylist()
+        }, 1000)
+      }
+
+      async function trackPlaylist({ force = false } = {}) {
+        const entry = playlist.videos[playlist.index]
+        if (!entry) return
+        // The final write happens while the switch still reads off (the Host
+        // saves the resume point as it flips), so `force` bypasses this guard
+        // and the per-second de-duplication below.
+        if (!force && !playlist.enabled) return
+        const signature = playlist.order[playlist.index] ?? ''
+        const stamp = `${signature}|${Math.floor(playlist.resumeSecond)}`
+        if (!force && stamp === lastTracked) return
+        lastTracked = stamp
+        try {
+          const payload = await api.trackPlaylist({
+            folder: playlist.settings.folder,
+            signature,
+            index: playlist.index,
+            second: playlist.resumeSecond,
+          })
+          if (payload?.tracked) playlist.tracked = payload.tracked
+        } catch {
+          lastTracked = '' // retry on the next event
+        }
+      }
+
+      /** Move by one clip (wrapping at both ends) and start it. */
+      function advancePlaylist(step) {
+        const total = playlist.videos.length
+        playlist.index = total === 0 ? 0 : ((playlist.index + step) % total + total) % total
+        playlist.resumeSecond = 0
+        writeLocalResume()
+        scheduleTrack()
+        const skin = currentSkin()
+        if (skin) {
+          destroyVideo()
+          syncVideo(skin, skin.transparency)
+        }
+        emit()
+        return true
+      }
+
+      /** Replace the folder and start it from the beginning (or its saved point). */
+      async function chooseFolder(folder) {
+        playlist.settings = { ...playlist.settings, folder }
+        playlist.tracked = { folder, signature: '', index: 0, second: 0 }
+        await refreshPlaylist()
+        return playlist.settings.folder
+      }
+
+      function applySpeed(value) {
+        if (video.element) {
+          try {
+            video.element.playbackRate = value
+          } catch {
+            /* element gone */
+          }
+        }
+      }
+
+      /* picture in picture ------------------------------------------------- */
+
+      function isPictureInPictureAvailable() {
+        try {
+          return typeof document !== 'undefined' && document.pictureInPictureEnabled === true && typeof document.createElement === 'function'
+        } catch {
+          return false
+        }
+      }
+
+      function applyPictureInPicturePreference() {
+        if (playlist.settings.pictureInPicture !== true) exitPictureInPicture()
+        else if (video.element && !video.element.paused) enterPictureInPicture()
+      }
+
+      function enterPictureInPicture() {
+        if (playlist.settings.pictureInPicture !== true) return
+        const element = video.element
+        if (!element || typeof element.requestPictureInPicture !== 'function') return
+        try {
+          if (document.pictureInPictureElement === element) return
+          const result = element.requestPictureInPicture()
+          // No user gesture yet: the next play() tries again.
+          if (result && typeof result.catch === 'function') result.catch(() => {})
+        } catch {
+          /* not allowed on this platform or at this moment */
+        }
+      }
+
+      function exitPictureInPicture() {
+        try {
+          if (document.pictureInPictureElement && typeof document.exitPictureInPicture === 'function') void document.exitPictureInPicture().catch?.(() => {})
+        } catch {
+          /* nothing in picture in picture */
+        }
+      }
+
+      async function updatePlaylistSettings(patch) {
+        const input = patch && typeof patch === 'object' ? patch : {}
+        const before = playlist.settings.folder
+        const next = { ...playlist.settings, ...input }
+        playlist.settings = next
+        if (typeof input.speed === 'number') applySpeed(next.speed)
+        if (typeof input.pictureInPicture === 'boolean') applyPictureInPicturePreference()
+        if (snapshot?.playlist) snapshot = { ...snapshot, playlist: { ...snapshot.playlist, ...input, enabled: playlist.enabled } }
+        emit()
+        try {
+          const payload = await api.playlistSettings(input)
+          const saved = payload?.playlist ?? null
+          if (saved) {
+            const { position: _position, ...preferences } = saved
+            playlist.settings = { ...playlist.settings, ...preferences }
+          }
+          // Only the folder moves the playback position; speed and PiP leave it.
+          const after = playlist.settings.folder
+          if (after !== before) {
+            // The Host resets it too (the folder changed on its side), so start
+            // the new folder at its first clip. Re-selecting a remembered folder
+            // goes through `chooseHistory`, which restores the stored position.
+            playlist.tracked = { folder: after, signature: '', index: 0, second: 0 }
+          }
+          if (payload?.snapshot) applySnapshot(payload.snapshot)
+          if (after !== before) await refreshPlaylist()
+        } catch (error) {
+          console.error('[dsh-skin] 保存视频列表设置失败', error)
+          throw error
+        }
+        return { ...playlist.settings }
+      }
+
+      /** Re-read the folder, then re-sync the mounted video. */
+      async function refreshPlaylist() {
+        // Read the folder even while the switch is off: the settings sheet shows
+        // the clip count, and turning the switch on must not wait for a listing.
+        await loadPlaylist()
+        const skin = currentSkin()
+        if (skin) syncVideo(skin, skin.transparency ?? 60)
+        emit()
+        return playlist
+      }
+
+      /**
+       * Turn the injection on or off.
+       *
+       * On: read the folder and mount the clip to resume on. Off: tear the
+       * element down; a theme with its own MP4 gets it back, a static theme ends
+       * up with no video at all.
+       */
+      async function setPlaylistEnabled(enabled) {
+        const next = enabled === true
+        // Re-enabling an already-on switch still re-reads the folder, so it works
+        // as a refresh; turning off an off switch is a no-op.
+        if (next === playlist.enabled && !next) {
+          emit()
+          return playlist.enabled
+        }
+        if (!next) {
+          // Report the final position *before* the Host flips to off: it saves
+          // the resume point while the switch is still on its side too.
+          if (video.element && video.source?.kind === 'playlist') syncResumeSecond(video.element)
+          await trackPlaylist({ force: true })
+        }
+        playlist.enabled = next
+        emit()
+        try {
+          await api.setPlaylistEnabled(next)
+        } catch (error) {
+          console.error('[dsh-skin] 保存视频列表开关失败', error)
+        }
+        if (next) {
+          await loadPlaylist()
+        } else {
+          exitPictureInPicture()
+          if (trackTimer !== null) {
+            clearTimeout(trackTimer)
+            trackTimer = null
+          }
+        }
+        const skin = currentSkin()
+        if (skin) {
+          destroyVideo()
+          syncVideo(skin, skin.transparency ?? 60)
+        }
+        emit()
+        return playlist.enabled
+      }
+
+      async function togglePlaylist() {
+        const enabled = await setPlaylistEnabled(!playlist.enabled)
+        return { enabled, count: playlist.videos.length, error: playlist.error }
+      }
+
+      function getPlaylistState() {
+        const entry = playlist.videos[playlist.index] ?? null
+        return {
+          enabled: playlist.enabled,
+          loading: playlist.loading,
+          error: playlist.error,
+          folder: playlist.settings.folder,
+          settings: { ...playlist.settings },
+          videos: playlist.videos.slice(),
+          order: playlist.order.slice(),
+          index: playlist.index,
+          count: playlist.videos.length,
+          name: entry?.name ?? null,
+          second: playlist.resumeSecond,
+          pictureInPictureAvailable: isPictureInPictureAvailable(),
+          pictureInPicture: playlist.settings.pictureInPicture === true,
+          playing: Boolean(video.element) && !video.element.paused,
+          source: video.source?.kind ?? null,
+        }
+      }
+
+      /** Pick a folder with the OS dialog; the Host remembers it on the way back. */
+      async function pickPlaylistFolder() {
+        const payload = await api.pickFolder(playlist.settings.folder)
+        if (!payload?.path) return null
+        playlist.settings = { ...playlist.settings, ...(payload.playlist ?? {}), folder: payload.path, position: undefined }
+        playlist.tracked = { folder: payload.path, signature: '', index: 0, second: 0 }
+        if (payload.snapshot) applySnapshot(payload.snapshot)
+        await refreshPlaylist()
+        return payload.path
+      }
+
+      /** Use a remembered folder (double-click in the history list). */
+      async function chooseHistory(path) {
+        const payload = await api.useHistory(path)
+        if (payload?.playlist) playlist.settings = { ...playlist.settings, ...payload.playlist, position: undefined }
+        playlist.tracked = { folder: payload?.playlist?.folder ?? path, signature: '', index: 0, second: 0 }
+        if (payload?.snapshot) applySnapshot(payload.snapshot)
+        await refreshPlaylist()
+        return payload?.playlist?.folder ?? path
+      }
+
+      /** Open the playlist folder in Explorer / Finder. */
+      async function openPlaylistFolder(path) {
+        return api.openFolder(path ?? playlist.settings.folder)
+      }
+
       function onVisibilityChange() {
         const skin = currentSkin()
-        if (!skin?.video) return
+        if (!playbackFor(skin)) return
         if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
           try {
             video.element?.pause()
           } catch {
             /* already detached */
           }
+          if (video.element) syncResumeSecond(video.element)
           return
         }
         if (shouldPlay(skin) && video.element?.paused) attemptPlay(video.element)
@@ -864,54 +1440,124 @@ window.__ModuleLoader__.load({
         emit()
       }
 
-      /** Register the play/pause command with the app's shortcut system. */
-      function registerShortcut(service) {
-        if (!service?.register || video.shortcutRegistered) return null
-        const binding = (platform) => ({ code: 'KeyP', modifiers: platform === 'macos' ? ['meta', 'alt'] : ['control', 'alt'] })
+      function onPageHide() {
+        if (video.element && video.source?.kind === 'playlist') syncResumeSecond(video.element)
+        void trackPlaylist()
+        exitPictureInPicture()
+      }
+
+      function shortcutBinding(id, platform) {
+        const mac = platform === 'macos'
+        return { code: id === PLAYLIST_SHORTCUT_ID ? 'KeyL' : 'KeyP', modifiers: mac ? ['meta', 'alt'] : ['control', 'alt'] }
+      }
+
+      /** Register one play/pause or playlist command with the app's registry. */
+      function registerCommand(service, id, labelKey, aliases, run) {
+        if (!service?.register || shortcutState[id]) return null
         try {
           const disposer = service.register({
-            id: SHORTCUT_ID,
-            label: () => translate(ctx, 'video.shortcut'),
-            aliases: ['dynamic background', 'play pause'],
+            id,
+            label: () => translate(ctx, labelKey),
+            aliases,
             defaults: {
-              'desktop:macos': binding('macos'),
-              'desktop:windows': binding('windows'),
-              'desktop:linux': binding('linux'),
-              'web:macos': binding('macos'),
-              'web:windows': binding('windows'),
+              'desktop:macos': shortcutBinding(id, 'macos'),
+              'desktop:windows': shortcutBinding(id, 'windows'),
+              'desktop:linux': shortcutBinding(id, 'linux'),
+              'web:macos': shortcutBinding(id, 'macos'),
+              'web:windows': shortcutBinding(id, 'windows'),
             },
             regions: ['page', 'editable', 'terminal'],
             modals: [],
             resolve: () => ({
               status: 'handled',
               run: () => {
-                toggleVideo()
+                run()
               },
             }),
           })
-          video.shortcutRegistered = true
+          shortcutState[id] = true
           return disposer
         } catch (error) {
-          console.warn('[dsh-skin] 注册播放快捷键失败，改为窗口内快捷键', error)
+          console.warn(`[dsh-skin] 注册快捷键失败：${id}`, error)
           return null
         }
+      }
+
+      function registerShortcut(service) {
+        return registerCommand(service, SHORTCUT_ID, 'video.shortcut', ['dynamic background', 'play pause'], () => {
+          toggleVideo()
+        })
+      }
+
+      function registerPlaylistShortcut(service) {
+        return registerCommand(service, PLAYLIST_SHORTCUT_ID, 'playlist.shortcut', ['playlist', 'video list'], () => {
+          void togglePlaylist()
+        })
       }
 
       /** Fallback for builds without the shortcut registry: window-level keydown. */
       function installFallbackShortcut() {
         if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {}
         const onKeyDown = (event) => {
-          if (video.shortcutRegistered) return
+          if (shortcutState[SHORTCUT_ID] && shortcutState[PLAYLIST_SHORTCUT_ID]) return
           if (!event.altKey || event.shiftKey) return
           if (!(isMac ? event.metaKey : event.ctrlKey)) return
-          if (event.code !== 'KeyP' && String(event.key ?? '').toLowerCase() !== 'p') return
+          const key = String(event.key ?? '').toLowerCase()
+          const togglePlayback = (event.code === 'KeyP' || key === 'p') && !shortcutState[SHORTCUT_ID]
+          const toggleList = (event.code === 'KeyL' || key === 'l') && !shortcutState[PLAYLIST_SHORTCUT_ID]
+          if (!togglePlayback && !toggleList) return
           const target = event.target
           if (target && typeof target.closest === 'function' && (target.isContentEditable || target.closest('input, textarea, select, [contenteditable="true"]'))) return
           event.preventDefault?.()
-          toggleVideo()
+          if (toggleList) void togglePlaylist()
+          else toggleVideo()
         }
         window.addEventListener('keydown', onKeyDown, true)
         return () => window.removeEventListener('keydown', onKeyDown, true)
+      }
+
+      function startShortcut() {
+        const disposers = [installFallbackShortcut()]
+        const registerAll = (service) => {
+          for (const disposer of [registerShortcut(service), registerPlaylistShortcut(service)]) if (disposer) disposers.push(disposer)
+        }
+        let service = null
+        try {
+          service = ctx.get('shortcuts')
+        } catch {
+          service = null
+        }
+        if (service) {
+          registerAll(service)
+        } else if (typeof ctx.inject === 'function') {
+          // The shortcuts plugin may mount after this one; inject waits for it.
+          ctx.inject(['shortcuts'], (shortcutCtx) => {
+            shortcutCtx.effect(() => {
+              const owned = []
+              for (const disposer of [registerShortcut(shortcutCtx.shortcuts), registerPlaylistShortcut(shortcutCtx.shortcuts)]) {
+                if (disposer) owned.push(disposer)
+              }
+              return () => {
+                for (const dispose of owned.reverse()) {
+                  try {
+                    dispose()
+                  } catch {
+                    /* already disposed */
+                  }
+                }
+              }
+            })
+          })
+        }
+        return () => {
+          for (const dispose of disposers.reverse()) {
+            try {
+              dispose()
+            } catch {
+              /* already disposed */
+            }
+          }
+        }
       }
 
       function startShortcut() {
@@ -1062,11 +1708,14 @@ window.__ModuleLoader__.load({
           appliedId = skin.id
           // A different theme restarts the playback policy: a manual pause does
           // not leak into the next skin, and a manual start does not either.
-          if (video.skinId !== skin.id) {
+          // Switching themes keeps the playlist position — that clip is not the
+          // theme's, so it continues exactly where it was.
+          if (video.source?.kind === 'theme' && video.source.skinId !== skin.id) {
             video.userPaused = false
             video.manualStarted = false
             video.failed = false
           }
+          if (video.source?.kind === 'theme' || video.source === null) video.failed = false
           syncVideo(skin, skin.transparency)
         } catch (error) {
           console.error(`[dsh-skin] 应用皮肤失败 ${skin.id}`, error)
@@ -1089,6 +1738,17 @@ window.__ModuleLoader__.load({
             autoplay: next.video.autoplay !== false,
             muted: next.video.muted !== false,
           }
+        }
+        // The playlist switch is owned by the Host process, so a snapshot is the
+        // truth about it: a restart arrives as `enabled: false` and the injected
+        // video is torn down on the next sync.
+        if (next.playlist && typeof next.playlist === 'object') {
+          const { enabled, position: _position, ...preferences } = next.playlist
+          playlist.settings = { ...playlist.settings, ...preferences }
+          playlist.enabled = enabled === true
+        }
+        if (next.playlistStatus?.tracked && typeof next.playlistStatus.tracked === 'object') {
+          playlist.tracked = { ...next.playlistStatus.tracked }
         }
         mutating = true
         try {
@@ -1164,7 +1824,19 @@ window.__ModuleLoader__.load({
           if (cancelled) return
           attempt += 1
           try {
-            const loaded = await load()
+            await load()
+            // The switch comes from the Host (off after a restart); read the
+            // folder before the engine mounts anything, then re-sync so the
+            // first clip — not the theme's own video — is what appears.
+            if (playlist.enabled && playlist.settings.folder) {
+              await loadPlaylist()
+              const first = currentSkin()
+              if (first) {
+                destroyVideo()
+                syncVideo(first, first.transparency ?? 60)
+              }
+            }
+            const loaded = snapshot
             const themed = loaded?.themes?.length ?? 0
             const activeSkin = loaded?.themes?.find((entry) => entry.id === loaded?.activeId)
             api
@@ -1195,9 +1867,20 @@ window.__ModuleLoader__.load({
         } catch {
           /* no media query support */
         }
+        const onHide = () => onPageHide()
+        try {
+          if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') window.addEventListener('pagehide', onHide)
+        } catch {
+          /* no window */
+        }
         return () => {
           cancelled = true
           disposeShortcut()
+          try {
+            if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') window.removeEventListener('pagehide', onHide)
+          } catch {
+            /* no window */
+          }
           try {
             if (typeof document !== 'undefined' && typeof document.removeEventListener === 'function') document.removeEventListener('visibilitychange', onVisibility)
           } catch {
@@ -1260,9 +1943,32 @@ window.__ModuleLoader__.load({
         isVideoPlaying: () => Boolean(video.element) && !video.element.paused,
         isVideoStarted: () => Boolean(video.element),
         getActiveSkin: () => currentSkin(),
-        getShortcutKeys: () => shortcutKeys(),
+        /** Keycaps for one command; defaults to the play/pause shortcut. */
+        getShortcutKeys: (id) => shortcutKeys(id),
+        getPlaylistShortcutKeys: () => shortcutKeys(PLAYLIST_SHORTCUT_ID),
         subscribeShortcut,
-        isShortcutRegistered: () => video.shortcutRegistered,
+        isShortcutRegistered: (id) => shortcutState[id ?? SHORTCUT_ID] === true,
+        /* folder playlist */
+        getPlaylistState,
+        updatePlaylistSettings,
+        refreshPlaylist,
+        setPlaylistEnabled,
+        togglePlaylist,
+        nextPlaylist: () => advancePlaylist(1),
+        prevPlaylist: () => advancePlaylist(-1),
+        pickPlaylistFolder,
+        chooseFolder,
+        chooseHistory,
+        openPlaylistFolder,
+        isPictureInPictureAvailable,
+        togglePictureInPicture() {
+          if (document?.pictureInPictureElement) {
+            exitPictureInPicture()
+            return false
+          }
+          enterPictureInPicture()
+          return true
+        },
         deactivateLocal() {
           if (!snapshot) return
           snapshot = { ...snapshot, activeId: null }
@@ -1983,10 +2689,10 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function Switch({ id, checked, label, hint, onChange }) {
+    function Switch({ id, checked, label, hint, disabled = false, onChange }) {
       return h(
         'label',
-        { className: 'dsks-switch', htmlFor: id },
+        { className: 'dsks-switch', htmlFor: id, 'data-disabled': disabled ? '' : undefined },
         h(
           'span',
           { className: 'dsks-switch-text' },
@@ -1998,6 +2704,7 @@ window.__ModuleLoader__.load({
           className: 'dsks-switch-input',
           type: 'checkbox',
           checked: Boolean(checked),
+          disabled: Boolean(disabled),
           onChange: (event) => onChange(event.target.checked),
         }),
         h('span', { className: 'dsks-switch-track', 'aria-hidden': 'true' }, h('span', { className: 'dsks-switch-thumb' })),
@@ -2014,8 +2721,16 @@ window.__ModuleLoader__.load({
     function VideoSettingsDialog({ t, runtime, onClose }) {
       const [settings, setSettings] = useState(() => runtime.getVideoSettings())
       const [keys, setKeys] = useState(() => runtime.getShortcutKeys())
+      const [playlistKeys, setPlaylistKeys] = useState(() => runtime.getPlaylistShortcutKeys?.() ?? [])
       const [, setRevision] = useState(0)
-      useEffect(() => runtime.subscribeShortcut(() => setKeys(runtime.getShortcutKeys())), [runtime])
+      useEffect(
+        () =>
+          runtime.subscribeShortcut(() => {
+            setKeys(runtime.getShortcutKeys())
+            setPlaylistKeys(runtime.getPlaylistShortcutKeys?.() ?? [])
+          }),
+        [runtime],
+      )
       const skin = runtime.getActiveSkin()
       const playing = runtime.isVideoPlaying()
       const update = (patch) => {
@@ -2026,6 +2741,10 @@ window.__ModuleLoader__.load({
         runtime.toggleVideo()
         setRevision((value) => value + 1)
       }
+      // The playlist, when on, is what is actually on screen; the theme's own
+      // MP4 then sits idle, so the state row has to describe the clip instead.
+      const playlist = runtime.getPlaylistState?.() ?? null
+      const fromPlaylist = Boolean(playlist?.enabled && playlist?.source === 'playlist')
       const meta = skin?.video
         ? t('video.meta', {
             w: skin.video.width,
@@ -2034,13 +2753,16 @@ window.__ModuleLoader__.load({
             mb: Math.round(((skin.video.bytes ?? 0) / 1024 / 1024) * 10) / 10,
           })
         : null
-      const state = !skin?.video
-        ? t('video.stateNone')
-        : playing
-          ? t('video.statePlaying')
-          : runtime.isVideoStarted?.()
-            ? t('video.statePaused')
-            : t('video.stateIdle')
+      const hasPlayback = Boolean(skin?.video) || fromPlaylist
+      const state = fromPlaylist
+        ? `${playing ? t('video.statePlaying') : t('video.statePaused')} · ${t('playlist.positionOf', { i: playlist.index + 1, n: playlist.count, name: playlist.name ?? '' })}`
+        : !skin?.video
+          ? t('video.stateNone')
+          : playing
+            ? t('video.statePlaying')
+            : runtime.isVideoStarted?.()
+              ? t('video.statePaused')
+              : t('video.stateIdle')
       return h(
         Dialog,
         {
@@ -2089,9 +2811,188 @@ window.__ModuleLoader__.load({
             'div',
             { className: 'dsks-video-state-text' },
             h('span', { className: 'dsks-switch-label' }, t('video.state')),
-            h('span', { className: 'dsks-switch-hint' }, meta ? `${state} · ${meta}` : state),
+            h('span', { className: 'dsks-switch-hint' }, !fromPlaylist && meta ? `${state} · ${meta}` : state),
           ),
-          skin?.video ? h(Button, { icon: playing ? 'pause' : 'play', onClick: toggle }, playing ? t('video.pause') : t('video.play')) : null,
+          hasPlayback ? h(Button, { icon: playing ? 'pause' : 'play', onClick: toggle }, playing ? t('video.pause') : t('video.play')) : null,
+        ),
+        h(PlaylistPanel, { t, runtime, playlist, playlistKeys, onChanged: () => setRevision((value) => value + 1) }),
+      )
+    }
+
+    /**
+     * Advanced settings: the folder playlist.
+     *
+     * Collapsed by default (`<details>` without `open`), because it is a power
+     * feature sitting under the two switches people actually come here for.
+     * Every control writes through the runtime, which owns the video element.
+     */
+    function PlaylistPanel({ t, runtime, playlist, playlistKeys, onChanged }) {
+      const [open, setOpen] = useState(false)
+      const [busy, setBusy] = useState(null)
+      const [error, setError] = useState(null)
+      const refresh = () => onChanged?.()
+      // Picture-in-picture is a Chromium feature on <video>; when the shell does
+      // not expose it the switch is shown disabled rather than silently useless.
+      const pipAvailable = Boolean(playlist?.pictureInPictureAvailable)
+      const run = async (key, action) => {
+        setBusy(key)
+        setError(null)
+        try {
+          const result = await action()
+          return result
+        } catch (failure) {
+          setError(failure instanceof Error ? failure.message : String(failure))
+          return null
+        } finally {
+          setBusy(null)
+          refresh()
+        }
+      }
+      const toggleEnabled = () =>
+        run('enable', async () => {
+          await runtime.setPlaylistEnabled(!playlist.enabled)
+        })
+      const chooseFolder = () => run('folder', () => runtime.pickPlaylistFolder())
+      const openFolder = () => run('open', () => runtime.openPlaylistFolder(playlist.folder))
+      const changeSpeed = (speed) => run('speed', () => runtime.updatePlaylistSettings({ speed }))
+      const changePip = (value) => run('pip', () => runtime.updatePlaylistSettings({ pictureInPicture: value }))
+      const useHistory = (path) => run(`history:${path}`, () => runtime.chooseHistory(path))
+      const goRelative = (step) => {
+        if (step > 0) runtime.nextPlaylist?.()
+        else runtime.prevPlaylist?.()
+        refresh()
+      }
+      const history = Array.isArray(playlist?.settings?.history) ? playlist.settings.history : []
+      const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2]
+
+      let position
+      if (!playlist?.enabled) position = t('playlist.positionIdle')
+      else if (playlist.error === 'empty') position = t('playlist.positionEmpty')
+      else if (typeof playlist.error === 'string' && playlist.error !== '') position = t('playlist.positionError', { message: playlist.error })
+      else if (!playlist.count) position = playlist.folder ? t('playlist.positionEmpty') : t('playlist.positionWaiting')
+      else position = t('playlist.positionOf', { i: playlist.index + 1, n: playlist.count, name: playlist.name ?? '' })
+
+      return h(
+        'details',
+        {
+          className: 'dsks-fallback dsks-advanced dsks-playlist',
+          open: open || undefined,
+          onToggle: (event) => setOpen(Boolean(event.currentTarget?.open ?? event.target?.open)),
+        },
+        h('summary', null, t('playlist.advanced')),
+        h(
+          'div',
+          { className: 'dsks-form dsks-playlist-body' },
+          h('p', { className: 'dsks-hint' }, t('playlist.advancedHint')),
+          h(Switch, {
+            id: 'dsks-playlist-enable',
+            checked: Boolean(playlist.enabled),
+            label: t('playlist.enable'),
+            hint: t('playlist.enableHint'),
+            disabled: busy === 'enable',
+            onChange: () => toggleEnabled(),
+          }),
+          h(
+            'div',
+            { className: 'dsks-switch dsks-playlist-keys' },
+            h(
+              'div',
+              { className: 'dsks-switch-text' },
+              h('span', { className: 'dsks-switch-label' }, t('playlist.shortcut')),
+              h('span', { className: 'dsks-switch-hint' }, t('playlist.shortcutHint')),
+            ),
+            h(
+              'span',
+              { className: 'dsks-keycaps' },
+              ...playlistKeys.map((key, index) =>
+                key === '+' ? h('span', { key: index, className: 'dsks-keycap-plus' }, '+') : h('kbd', { key: index, className: 'dsks-keycap' }, key),
+              ),
+            ),
+          ),
+          h(
+            'div',
+            { className: 'dsks-playlist-field' },
+            h('span', { className: 'dsks-field-label' }, t('playlist.folder')),
+            h('input', {
+              className: 'dsks-input dsks-playlist-path',
+              readOnly: true,
+              value: playlist?.folder ?? '',
+              placeholder: t('playlist.folderEmpty'),
+              title: playlist?.folder ?? '',
+            }),
+            h(Button, { busy: busy === 'folder', onClick: chooseFolder }, t('playlist.choose')),
+            h(Button, { disabled: !playlist?.folder, busy: busy === 'open', onClick: openFolder }, t('playlist.open')),
+          ),
+          h('p', { className: 'dsks-hint' }, t('playlist.folderHint')),
+          h(
+            'div',
+            { className: 'dsks-field' },
+            h('label', { className: 'dsks-field-label', htmlFor: 'dsks-playlist-speed' }, t('playlist.speed')),
+            h(
+              'select',
+              {
+                id: 'dsks-playlist-speed',
+                className: 'dsks-select',
+                value: String(playlist?.settings?.speed ?? 1),
+                onChange: (event) => changeSpeed(Number(event.target.value)),
+              },
+              ...speeds.map((value) => h('option', { key: value, value: String(value) }, `${value}×`)),
+            ),
+          ),
+          h(Switch, {
+            id: 'dsks-playlist-pip',
+            checked: Boolean(playlist?.pictureInPicture),
+            disabled: !pipAvailable,
+            label: t('playlist.pip'),
+            hint: pipAvailable ? t('playlist.pipHint') : t('playlist.pipUnsupported'),
+            onChange: (value) => changePip(value),
+          }),
+          h(
+            'div',
+            { className: 'dsks-playlist-history' },
+            h('span', { className: 'dsks-switch-label' }, t('playlist.history')),
+            h('span', { className: 'dsks-switch-hint' }, t('playlist.historyHint')),
+            history.length === 0
+              ? h('p', { className: 'dsks-hint' }, t('playlist.historyEmpty'))
+              : h(
+                  'ul',
+                  { className: 'dsks-playlist-history-list' },
+                  ...history.map((path) =>
+                    h(
+                      'li',
+                      {
+                        key: path,
+                        className: 'dsks-playlist-history-item',
+                        'data-current': playlist?.folder === path ? '' : undefined,
+                        title: path,
+                        onDoubleClick: () => useHistory(path),
+                      },
+                      h('span', { className: 'dsks-playlist-history-path' }, path),
+                      playlist?.folder === path ? h('span', { className: 'dsks-pill' }, t('playlist.historyCurrent')) : null,
+                      h('button', { type: 'button', className: 'dsks-link', disabled: busy === `history:${path}`, onClick: () => useHistory(path) }, t('playlist.historyUse')),
+                    ),
+                  ),
+                ),
+          ),
+          h(
+            'div',
+            { className: 'dsks-video-state' },
+            h(
+              'div',
+              { className: 'dsks-video-state-text' },
+              h('span', { className: 'dsks-switch-label' }, t('playlist.position')),
+              h('span', { className: 'dsks-switch-hint' }, position),
+            ),
+            playlist?.count > 1
+              ? h(
+                  'span',
+                  { className: 'dsks-playlist-steps' },
+                  h(Button, { onClick: () => goRelative(-1) }, t('playlist.prev')),
+                  h(Button, { onClick: () => goRelative(1) }, t('playlist.next')),
+                )
+              : null,
+          ),
+          error ? h('p', { className: 'dsks-error' }, error) : null,
         ),
       )
     }
@@ -2745,9 +3646,27 @@ window.__ModuleLoader__.load({
 .dsks-about-update{color:var(--dsw-alias-brand-primary);font-size:13px;font-weight:500;margin:0}
 .dsks-about-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .dsks-video-layer{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+/* A playlist on a static theme sits *above* the plugin's own wallpaper layer
+   (which is drawn at z-index 0 with #root lifted to 1); the +1 keeps the clip
+   in front of the still and behind every piece of UI. */
+.dsks-video-layer[data-source="playlist"]{z-index:1}
 .dsks-video-layer video{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .45s ease-out}
 .dsks-video-layer[data-ready] video{opacity:1}
 .dsks-video-veil{position:absolute;inset:0;display:block;pointer-events:none}
+.dsks-playlist-body{gap:10px}
+.dsks-playlist-field{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dsks-playlist-field .dsks-field-label{flex:none}
+.dsks-playlist-path{flex:1 1 200px;min-width:0;font-size:12px;color:var(--dsw-alias-label-secondary)}
+.dsks-playlist-keys{border-bottom:none;padding-bottom:0}
+.dsks-playlist-history{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.dsks-playlist-history-list{display:flex;flex-direction:column;gap:2px;margin:4px 0 0;padding:0;list-style:none;max-height:168px;overflow:auto}
+.dsks-playlist-history-item{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:7px;font-size:12px;color:var(--dsw-alias-label-secondary);cursor:default;user-select:none}
+.dsks-playlist-history-item:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2))}
+.dsks-playlist-history-item[data-current]{color:var(--dsw-alias-label-primary)}
+.dsks-playlist-history-path{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
+.dsks-playlist-steps{display:inline-flex;gap:6px;flex:none}
+.dsks-switch[data-disabled]{opacity:.55;cursor:default}
+.dsks-switch[data-disabled] .dsks-switch-track{pointer-events:none}
 .dsks-switch{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;cursor:pointer;border-bottom:1px solid var(--dsw-alias-border-l1)}
 .dsks-switch-text{display:flex;flex-direction:column;gap:2px;min-width:0}
 .dsks-switch-label{font-size:13px;font-weight:500;color:var(--dsw-alias-label-primary)}
@@ -2772,7 +3691,7 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots'],
       /** Test seam: the row and detail card are unreachable from a static render. */
-      __components: { SkinRow, SkinDetail, ImportDialog, Switch, VideoSettingsDialog, DesignDialog, AboutDialog, RenameDialog },
+      __components: { SkinRow, SkinDetail, ImportDialog, Switch, VideoSettingsDialog, PlaylistPanel, DesignDialog, AboutDialog, RenameDialog },
       apply(ctx) {
         const runtime = createRuntime(ctx)
         ctx.effect(() => runtime.start())

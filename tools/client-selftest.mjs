@@ -251,13 +251,58 @@ const snapshot = () => ({ ok: true, snapshot: { version: 1, activeId, themes: [s
 
 const releaseCalls = []
 
+/* --------------------------------------------------- folder-playlist fixture */
+
+const playlistDir = 'C:\\clips\\wallpaper'
+let playlistSettings = { folder: '', speed: 1, pictureInPicture: false, history: [] }
+let playlistEnabled = false
+let playlistTracked = { folder: '', signature: '', index: 0, second: 0 }
+const trackCalls = []
+const pipeline = ['第一集.mp4', '第二集.mp4', '第十集.mp4'].map((name, index) => ({
+  name,
+  size: 1024 * (index + 1),
+  mtimeMs: 1700000000000 + index,
+  url: `/skin/assets/playlist/video?name=${encodeURIComponent(name)}&v=${index}`,
+}))
+const signatures = () => pipeline.map((entry) => `${entry.name}\u0000${entry.size}\u0000${entry.mtimeMs}`)
+const playlistSnapshot = () => ({
+  ...snapshot().snapshot,
+  playlist: { ...playlistSettings, enabled: playlistEnabled },
+  playlistStatus: { enabled: playlistEnabled, tracked: { ...playlistTracked } },
+})
+
 globalThis.fetch = async (url, options) => {
   const path = String(url)
   let payload
-  if (path.includes('/skin/api/snapshot')) payload = snapshot()
+  if (path.includes('/skin/api/snapshot')) payload = { ...snapshot(), snapshot: playlistSnapshot() }
   else if (path.endsWith('/skin/version')) payload = { ok: true, version: '1.0.2', repository: 'xxue-z/deepseek-harness-skin', url: 'https://github.com/xxue-z/deepseek-harness-skin' }
   else if (path.endsWith('/skin/update-check')) payload = { ok: true, ...releaseInfo }
   else if (path.includes('/skin/api/models')) payload = { ok: true, models: modelCatalog }
+  else if (path.includes('/skin/api/videos')) {
+    // The Host answers with the folder order and one URL per clip.
+    payload = playlistSettings.folder
+      ? { ok: true, folder: playlistSettings.folder, order: signatures(), videos: pipeline }
+      : { ok: true, folder: '', order: [], videos: [] }
+  } else if (path.includes('/skin/api/playlist-settings')) {
+    const patch = JSON.parse(options?.body ?? '{}')
+    playlistSettings = { ...playlistSettings, ...patch }
+    payload = { ok: true, playlist: { ...playlistSettings }, snapshot: playlistSnapshot() }
+  } else if (path.includes('/skin/api/playlist-enabled')) {
+    playlistEnabled = JSON.parse(options?.body ?? '{}').enabled === true
+    payload = { ok: true, enabled: playlistEnabled, tracked: { ...playlistTracked } }
+  } else if (path.includes('/skin/api/playlist-track')) {
+    const body = JSON.parse(options?.body ?? '{}')
+    trackCalls.push(body)
+    playlistTracked = { ...body }
+    payload = { ok: true, tracked: { ...playlistTracked } }
+  } else if (path.includes('/skin/api/playlist-history')) {
+    const { path: chosen } = JSON.parse(options?.body ?? '{}')
+    playlistSettings = { ...playlistSettings, folder: chosen, history: [chosen, ...playlistSettings.history] }
+    payload = { ok: true, playlist: { ...playlistSettings }, snapshot: playlistSnapshot() }
+  } else if (path.includes('/skin/api/pick-folder')) {
+    playlistSettings = { ...playlistSettings, folder: playlistDir, history: [playlistDir] }
+    payload = { ok: true, path: playlistDir, playlist: { ...playlistSettings }, snapshot: playlistSnapshot() }
+  } else if (path.includes('/skin/api/open-folder')) payload = { ok: true, opened: { path: playlistDir, opened: true } }
   else if (path.includes('/skin/api/release-video')) {
     // The Host answers with the file's handle state; `released` is the good path.
     releaseCalls.push(JSON.parse(options?.body ?? '{}'))
@@ -444,6 +489,125 @@ console.log('dynamic background controls')
     check('dialog shows the play/pause shortcut', text.includes('video.shortcut') && text.includes('Ctrl'), text.slice(0, 200))
     check('dialog shows the current state', text.includes('video.state'))
   }
+}
+
+console.log('folder playlist')
+{
+  const runtime = slotRegistrations[0].component({}).props.runtime
+  const bodyLayer = () => document.body.children.find((child) => String(child.className).startsWith('dsks-video-layer'))
+  const videoElement = () => bodyLayer()?.children.find((child) => child.tagName === 'VIDEO')
+  const flushTrack = async () => {
+    await flush()
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+    await flush()
+  }
+
+  // A folder the user picked: the Host stores it and answers with the order.
+  // A folder the user picked: the Host stores it and answers with the order.
+  playlistSettings = { ...playlistSettings, folder: playlistDir, history: [playlistDir] }
+  await runtime.chooseFolder(playlistDir)
+  check('the folder listing is read', runtime.getPlaylistState().count === 3, JSON.stringify(runtime.getPlaylistState()))
+  check('order follows the folder, not name sorting', runtime.getPlaylistState().videos[1]?.name === '第二集.mp4')
+
+  // 1. Turning it on injects a video even though the theme is dynamic, and it is
+  //    the *only* element: the theme's own MP4 is replaced, not stacked.
+  await runtime.setPlaylistEnabled(true)
+  await flush()
+  const layers = document.body.children.filter((child) => String(child.className).startsWith('dsks-video-layer'))
+  check('exactly one background video exists', layers.length === 1, JSON.stringify(document.body.children.map((child) => child.className)))
+  check('the injected element is the playlist clip', bodyLayer()?.getAttribute('data-source') === 'playlist')
+  check('the theme video is not mounted too', String(videoElement()?.src).includes('/skin/assets/playlist/video'), String(videoElement()?.src))
+  check('playlist clips do not loop while more remain', videoElement()?.loop === false)
+
+  // The play/pause command and the mute switch act on the playlist element.
+  runtime.toggleVideo()
+  check('the play/pause shortcut pauses the playlist', videoElement()?.paused === true)
+  runtime.toggleVideo()
+  check('the play/pause shortcut resumes the playlist', videoElement()?.paused === false)
+  // A pause remembers the second, so resuming continues the same clip instead
+  // of restarting it from zero.
+  videoElement().currentTime = 37
+  runtime.toggleVideo()
+  runtime.toggleVideo()
+  await flush()
+  check('resuming a paused clip keeps its position', runtime.getPlaylistState().second === 37 || videoElement()?.currentTime === 37, `${runtime.getPlaylistState().second}/${videoElement()?.currentTime}`)
+  await runtime.updateVideoSettings({ muted: false })
+  check('unmuting reaches the playlist element', videoElement()?.muted === false)
+  await runtime.updateVideoSettings({ muted: true })
+
+  // 3. Speed applies to the current element and to the next one.
+  await runtime.updatePlaylistSettings({ speed: 1.5 })
+  check('the speed reaches the element', videoElement()?.playbackRate === 1.5, String(videoElement()?.playbackRate))
+  await runtime.updatePlaylistSettings({ speed: 1 })
+
+  // 7. Advance by one (as `ended` does) and make sure the position is reported.
+  trackCalls.length = 0
+  runtime.nextPlaylist()
+  await flushTrack()
+  check('next moves to the following clip', runtime.getPlaylistState().index === 1)
+  check('the position is reported to the Host', trackCalls.length > 0 && trackCalls.at(-1).index === 1, JSON.stringify(trackCalls))
+  check('the report names the clip signature', trackCalls.at(-1).signature === signatures()[1])
+
+  // Switching off still reports the final position, so the Host can save it
+  // before the switch itself is cleared.
+  trackCalls.length = 0
+  await runtime.setPlaylistEnabled(false)
+  await flush()
+  check('switching off reports the final position', trackCalls.length > 0 && trackCalls.at(-1).index === 1, JSON.stringify(trackCalls))
+  await runtime.setPlaylistEnabled(true)
+  await flush()
+  runtime.nextPlaylist()
+  runtime.nextPlaylist()
+  check('advancing wraps at the end', runtime.getPlaylistState().index === 0)
+
+  // 6. The switch has its own shortcut command next to play/pause.
+  check('the playlist shortcut is a separate command', typeof exportsModule.apply === 'function' && runtime.getPlaylistShortcutKeys().includes('Ctrl'))
+  check('the default playlist key is L', runtime.getPlaylistShortcutKeys().at(-1) === 'L', JSON.stringify(runtime.getPlaylistShortcutKeys()))
+
+  // 8. A restart arrives as `enabled: false`; the element must go away.
+  playlistEnabled = true // the Host said on
+  await runtime.load()
+  await flush()
+  check('a snapshot turns the playlist on', Boolean(bodyLayer()))
+  playlistEnabled = false // …and now the Host restarted
+  await runtime.load()
+  await flush()
+  check('a restarted Host switches the playlist off', bodyLayer()?.getAttribute('data-source') === 'theme', String(bodyLayer()?.getAttribute('data-source')))
+  check('the switch reads off after the restart', runtime.getPlaylistState().enabled === false)
+
+  // On a static theme, off means no video at all.
+  await runtime.setPlaylistEnabled(true)
+  await flush()
+  activeId = lightSkin.id
+  await runtime.load()
+  await flush()
+  check('a static theme gets the injected clip', bodyLayer()?.getAttribute('data-source') === 'playlist')
+  await runtime.setPlaylistEnabled(false)
+  await flush()
+  check('switching off leaves the static theme with no video', bodyLayer() === undefined, JSON.stringify(document.body.children.map((child) => child.className)))
+  activeId = skin.id
+  await runtime.load()
+  await flush()
+
+  // Advanced settings are collapsed by default.
+  const PlaylistPanel = exportsModule.__components?.PlaylistPanel
+  check('the advanced panel is exported for testing', typeof PlaylistPanel === 'function')
+  const savedCursor = hookCursor
+  const savedStore = hookStore.slice()
+  hookCursor = 0
+  hookStore.length = 0
+  const panel = PlaylistPanel({ t: (key) => key, runtime, playlist: runtime.getPlaylistState(), playlistKeys: ['Ctrl', '+', 'Alt', '+', 'L'], onChanged: () => {} })
+  hookCursor = savedCursor
+  hookStore.length = 0
+  hookStore.push(...savedStore)
+  check('advanced settings are a collapsible section', panel?.type === 'details')
+  check('advanced settings start collapsed', !panel?.props?.open)
+  const panelText = JSON.stringify(panel)
+  for (const key of ['playlist.enable', 'playlist.folder', 'playlist.speed', 'playlist.pip', 'playlist.history', 'playlist.position']) {
+    check(`the panel offers ${key}`, panelText.includes(`"${key}"`), panelText.slice(0, 200))
+  }
+  check('picture-in-picture availability is probed', typeof runtime.isPictureInPictureAvailable() === 'boolean')
+  check('history is listed for double-click reuse', panelText.includes('playlistDir') || panelText.includes('C:\\\\clips\\\\wallpaper'), panelText.slice(0, 400))
 }
 
 console.log('transparency preview')

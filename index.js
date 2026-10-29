@@ -95,6 +95,11 @@ export function apply(ctx, config) {
 
   const handler = createSkinHandler(service, { store, log, meta })
 
+  // Fold the playlist position into state.json on the way out, so a quit that
+  // lands between two client reports still resumes on the right clip. The
+  // playlist switch itself is memory-only and is off again on the next start.
+  ctx.effect(() => () => service.stop())
+
   ctx.inject(['webServer'], (webCtx) => {
     webCtx.effect(() => webCtx.webServer.register({ kind: 'prefix', path: '/skin', handler }))
   })

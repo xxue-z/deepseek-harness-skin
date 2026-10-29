@@ -298,6 +298,85 @@ console.log('dynamic background')
   rmSync(dir, { recursive: true, force: true })
 }
 
+console.log('folder playlist')
+{
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-skin-playlist-'))
+  const store = new SkinStore(join(dir, 'skin'))
+  store.ensure()
+  const service = new SkinService({ store, config: { codexDirs: [] }, getLlm: () => undefined, getSelection: () => undefined })
+  const folder = join(dir, 'clips')
+  mkdirSync(folder, { recursive: true })
+  for (const name of ['第10集.mp4', '第2集.mp4', '第1集.mp4']) writeFileSync(join(folder, name), Buffer.alloc(1024, 3))
+  writeFileSync(join(folder, 'notes.txt'), 'not a video')
+  mkdirSync(join(folder, 'sub'), { recursive: true })
+  writeFileSync(join(folder, 'sub', 'nested.mp4'), Buffer.alloc(16, 1))
+
+  const listing = service.listPlaylistVideos(folder)
+  check('the listing keeps only videos', listing.videos.length === 3, JSON.stringify(listing.videos.map((entry) => entry.name)))
+  check('the listing follows natural order', listing.videos.map((entry) => entry.name).join(',') === '第1集.mp4,第2集.mp4,第10集.mp4', listing.videos.map((entry) => entry.name).join(','))
+  check('the listing does not recurse', !listing.videos.some((entry) => entry.name === 'nested.mp4'))
+  check('the listing carries signatures in order', listing.order.length === 3 && listing.order[0].startsWith('第1集.mp4\u0000'))
+  check('every clip gets an asset url', listing.videos.every((entry) => entry.url.startsWith('/skin/assets/playlist/video?folder=')))
+
+  const saved = service.setPlaylistSettings({ folder, speed: 1.5, pictureInPicture: true })
+  check('settings are saved', saved.settings.folder === folder && saved.settings.speed === 1.5 && saved.settings.pictureInPicture === true, JSON.stringify(saved.settings))
+  check('the folder joins the history', saved.settings.history[0] === folder, JSON.stringify(saved.settings.history))
+  check('settings are persisted', new SkinStore(join(dir, 'skin')).readState().playlist.speed === 1.5)
+  service.setPlaylistSettings({ speed: 3 })
+  check('an unsupported speed falls back to 1x', service.playlistSettings().speed === 1, String(service.playlistSettings().speed))
+  service.setPlaylistSettings({ folder: 'relative/path' })
+  check('a relative folder is refused', service.playlistSettings().folder === '', service.playlistSettings().folder)
+  service.setPlaylistSettings({ folder })
+
+  // The switch itself must never survive a restart.
+  check('the switch starts off', service.getPlaylistStatus().enabled === false)
+  service.setPlaylistEnabled(true)
+  check('the switch turns on', service.getPlaylistStatus().enabled === true && service.snapshot().playlist.enabled === true)
+  check(
+    'a restarted service starts switched off',
+    new SkinService({ store, config: { codexDirs: [] }, getLlm: () => undefined, getSelection: () => undefined }).getPlaylistStatus().enabled === false,
+  )
+
+  // Position: remember the middle clip, then delete it and fall back.
+  service.trackPlaylist({ folder, signature: listing.order[1], index: 1, second: 42.5 })
+  const restored = new SkinService({ store, config: { codexDirs: [] }, getLlm: () => undefined, getSelection: () => undefined }).getPlaylistStatus().tracked
+  check('the position survives a restart', restored.signature === listing.order[1] && restored.second === 42.5, JSON.stringify(restored))
+  service.trackPlaylist({ folder: dir, index: 2, second: 1 })
+  check('a folder that was never configured is refused', service.getPlaylistStatus().tracked.folder === folder, service.getPlaylistStatus().tracked.folder)
+
+  // Turning the switch off must not forget where the folder was left.
+  service.setPlaylistEnabled(true)
+  service.trackPlaylist({ folder, signature: listing.order[2], index: 2, second: 77 })
+  service.setPlaylistEnabled(false)
+  const afterOff = new SkinService({ store, config: { codexDirs: [] }, getLlm: () => undefined, getSelection: () => undefined }).getPlaylistStatus()
+  check('the switch is off after turning it off', afterOff.enabled === false)
+  check('turning it off keeps the playback position', afterOff.tracked.signature === listing.order[2] && afterOff.tracked.second === 77, JSON.stringify(afterOff.tracked))
+
+  // The asset route: bytes, ranges, and refusal outside the folder.
+  const server = createServer(createSkinHandler(service, { store, log: () => {} }))
+  await new Promise((done) => server.listen(0, '127.0.0.1', done))
+  const base = `http://127.0.0.1:${server.address().port}`
+  const api = await fetch(`${base}/skin/api/videos?folder=${encodeURIComponent(folder)}`).then((response) => response.json())
+  check('the api lists the folder', api.ok === true && api.videos.length === 3, JSON.stringify(api).slice(0, 160))
+  const clip = await fetch(`${base}${api.videos[0].url}`)
+  check('the asset route serves the clip', clip.ok === true && (await clip.arrayBuffer()).byteLength === 1024, String(clip.status))
+  check('the asset route types the clip', String(clip.headers.get('content-type')).startsWith('video/mp4'))
+  check('the asset route advertises ranges', clip.headers.get('accept-ranges') === 'bytes')
+  const part = await fetch(`${base}${api.videos[0].url}`, { headers: { range: 'bytes=10-19' } })
+  check('the asset route answers a range', part.status === 206 && (await part.arrayBuffer()).byteLength === 10, String(part.status))
+  const escape = await fetch(`${base}/skin/assets/playlist/video?folder=${encodeURIComponent(folder)}&name=${encodeURIComponent('..\\notes.txt')}`)
+  check('a parent path is refused', escape.status === 404, String(escape.status))
+  const nested = await fetch(`${base}/skin/assets/playlist/video?folder=${encodeURIComponent(folder)}&name=${encodeURIComponent('sub/nested.mp4')}`)
+  check('a nested path is refused', nested.status === 404, String(nested.status))
+  const outside = await fetch(`${base}/skin/assets/playlist/video?folder=${encodeURIComponent(dir)}&name=skin%2Fstate.json`)
+  check('a file outside the folder is refused', outside.status === 404, String(outside.status))
+  const unknown = await fetch(`${base}/skin/api/videos?folder=${encodeURIComponent(join(dir, 'missing'))}`).then((response) => response.json())
+  check('a missing folder reports why', unknown.ok === false && /不存在/.test(unknown.error), JSON.stringify(unknown))
+  server.close()
+  service.stop()
+  rmSync(dir, { recursive: true, force: true })
+}
+
 console.log('design sources')
 {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-skin-design-'))
