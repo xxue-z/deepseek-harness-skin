@@ -494,7 +494,7 @@ window.__ModuleLoader__.load({
       return Math.round(Math.min(1, veil + extra) * 1000) / 1000
     }
 
-    function wallpaperCss(skin, transparency, settingsOpen = false) {
+    function wallpaperCss(skin, transparency) {
       const rules = []
       if (skin.wallpaper?.url) {
         const alpha = veilAlphaFor(skin, transparency)
@@ -511,19 +511,9 @@ window.__ModuleLoader__.load({
         // it for the same reason.
         rules.push('#root{position:relative;z-index:1;}')
       }
-      if (settingsOpen) {
-        // The host dims Settings' own backdrop; over the wallpaper that reads as
-        // the theme darkening itself. The wallpaper layer is ours, so cancel the
-        // veil above it and let the mask sit on the content only.
-        rules.push('body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:transparent;}')
-      }
       // Dialogs float above other UI; blurring their backdrop is what turns a
 // translucent fill into a glass card instead of a window onto the page.
       rules.push('[role="dialog"],[role="alertdialog"]{backdrop-filter:blur(18px) saturate(1.12);-webkit-backdrop-filter:blur(18px) saturate(1.12);}')
-      // Our own modal already draws its own mask and paints cards above it, so
-      // the host's full-page veil behind it can be cancelled without changing
-      // how anything reads.
-      rules.push('body:has(.dsks-modal) [role="dialog"]:not(.dsks-modal),body:has(.dsks-modal) [role="alertdialog"]:not(.dsks-modal){background-color:transparent!important;}')
       const fontFamily = skin.typography?.fontFamily
       if (typeof fontFamily === 'string' && fontFamily.trim() !== '' && !GENERIC_FONTS.test(fontFamily.trim())) {
         rules.push(`body{font-family:${fontFamily};}`)
@@ -615,57 +605,11 @@ window.__ModuleLoader__.load({
       let videoSettings = { autoplay: true, muted: true }
       const video = { layer: null, element: null, skinId: null, failed: false, userPaused: false, manualStarted: false, shortcutRegistered: false }
       let motionQuery = null
-      // The host covers the whole page with a mask while Settings is open. It is
-      // ours to cancel: the wallpaper layer sits below #root, and a black veil
-      // over a dark wallpaper reads as "the theme dimmed itself".
-      let settingsOpen = false
       const isMac = typeof navigator !== 'undefined' && /mac/i.test(`${navigator.platform ?? ''} ${navigator.userAgent ?? ''}`)
       const SHORTCUT_ID = 'skin.toggleVideo'
 
       function currentSkin() {
         return snapshot?.themes?.find((skin) => skin.id === appliedId) ?? null
-      }
-
-      /**
-       * Whether the host's Settings view is the current page.
-       *
-       * The mask it draws covers the wallpaper too, which on a dark theme looks
-       * like the theme itself going grey. This flag is only a hint for the
-       * stylesheet; when the selector misses, nothing changes visually.
-       */
-      function detectSettingsOpen() {
-        try {
-          if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return false
-          return (
-            document.querySelector('[data-testid="settings"], [data-settings-open], [aria-label="设置"], [data-page="settings"]') !== null ||
-            document.querySelector('.dsks-root') !== null
-          )
-        } catch {
-          return false
-        }
-      }
-
-      /** Repaint the wallpaper stylesheet; the flag lives inside it. */
-      function repaint() {
-        const skin = currentSkin()
-        if (skin) writeWallpaper(skin, skin.transparency)
-      }
-
-      function watchSettings() {
-        if (typeof MutationObserver !== 'function' || typeof document === 'undefined' || !document.body) return () => {}
-        let scheduled = null
-        const observer = new MutationObserver(() => {
-          if (scheduled !== null) return
-          scheduled = setTimeout(() => {
-            scheduled = null
-            const next = detectSettingsOpen()
-            if (next === settingsOpen) return
-            settingsOpen = next
-            repaint()
-          }, 60)
-        })
-        observer.observe(document.body, { childList: true, subtree: true })
-        return () => observer.disconnect()
       }
 
       /** Keycaps the shortcut row shows, matching the binding in force. */
@@ -988,7 +932,7 @@ window.__ModuleLoader__.load({
 
       function writeWallpaper(skin, transparency) {
         const element = ensureStyleElement()
-        element.textContent = skin ? wallpaperCss(skin, transparency, settingsOpen) : ''
+        element.textContent = skin ? wallpaperCss(skin, transparency) : ''
       }
 
       function register(skin) {
@@ -1199,7 +1143,6 @@ window.__ModuleLoader__.load({
         void tick()
         motionReduced() // resolve the media query before subscribing to it
         const disposeShortcut = startShortcut()
-        const disposeSettings = watchSettings()
         const onVisibility = () => onVisibilityChange()
         const onMotion = () => onMotionChange()
         try {
@@ -1226,7 +1169,6 @@ window.__ModuleLoader__.load({
             /* no media query support */
           }
           destroyVideo()
-          disposeSettings?.()
           clearApplied()
           for (const id of [...registered.keys()]) removeRegistration(id)
           if (styleElement) styleElement.remove()
