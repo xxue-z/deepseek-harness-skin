@@ -242,6 +242,14 @@ console.log('dynamic background')
   const unsatisfiable = await fetch(`${base}${skin.video.url}`, { headers: { range: 'bytes=999999-' } })
   check('unsatisfiable range answers 416', unsatisfiable.status === 416, String(unsatisfiable.status))
 
+  // A theme that stopped playing must not keep its mp4 open. The check opens the
+  // file for writing: on Windows a live handle elsewhere makes that fail.
+  const released = await fetch(`${base}/skin/api/release-video`, { method: 'POST', body: JSON.stringify({ id: skin.id }) }).then((response) => response.json())
+  check('release-video reports the handle state', released.ok === true && ['released', 'inUse'].includes(released.lock), JSON.stringify(released))
+  check('a finished request releases the file', released.lock === 'released', `lock=${released.lock}`)
+  const noVideo = await fetch(`${base}/skin/api/release-video`, { method: 'POST', body: JSON.stringify({ id: 'skin.missing' }) }).then((response) => response.json())
+  check('release-video tolerates a theme without video', noVideo.ok === true && noVideo.lock === 'absent', JSON.stringify(noVideo))
+
   const saved = service.setVideoSettings({ autoplay: false, muted: false })
   check('video settings return the new values', saved.settings.autoplay === false && saved.settings.muted === false)
   check('video settings are persisted', new SkinStore(join(dir, 'skin')).readState().video.muted === false)

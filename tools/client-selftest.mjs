@@ -249,6 +249,8 @@ const lightSkin = {
 
 const snapshot = () => ({ ok: true, snapshot: { version: 1, activeId, themes: [skin, lightSkin], sources: [], dataDir: 'x', model: null, client: null, video: { ...videoSettings } } })
 
+const releaseCalls = []
+
 globalThis.fetch = async (url, options) => {
   const path = String(url)
   let payload
@@ -256,7 +258,11 @@ globalThis.fetch = async (url, options) => {
   else if (path.endsWith('/skin/version')) payload = { ok: true, version: '1.0.2', repository: 'xxue-z/deepseek-harness-skin', url: 'https://github.com/xxue-z/deepseek-harness-skin' }
   else if (path.endsWith('/skin/update-check')) payload = { ok: true, ...releaseInfo }
   else if (path.includes('/skin/api/models')) payload = { ok: true, models: modelCatalog }
-  else if (path.includes('/skin/api/design')) {
+  else if (path.includes('/skin/api/release-video')) {
+    // The Host answers with the file's handle state; `released` is the good path.
+    releaseCalls.push(JSON.parse(options?.body ?? '{}'))
+    payload = { ok: true, lock: 'released' }
+  } else if (path.includes('/skin/api/design')) {
     designCalls.push(JSON.parse(options?.body ?? '{}'))
     payload = { ok: true, snapshot: snapshot().snapshot, skin: { ...skin, id: 'skin.designed', name: 'Designed' }, usedModel: true, warning: null }
   } else if (path.includes('/skin/api/ping')) payload = { ok: true }
@@ -412,6 +418,16 @@ console.log('dynamic background controls')
   check('autoplay off removes the layer', !layer())
   await runtime.updateVideoSettings({ autoplay: true })
   check('autoplay on mounts it again', Boolean(layer()))
+
+  // Switching away from a dynamic theme must hand the file back: detaching the
+  // element alone leaves Chromium's buffer (and the OS lock) alive on Windows.
+  releaseCalls.length = 0
+  runtime.applySnapshot({ ...snapshot().snapshot, activeId: null })
+  await flush()
+  check('tearing the video down asks the Host to release the file', releaseCalls.length > 0, JSON.stringify(releaseCalls))
+  check('the release request names the theme', releaseCalls.some((call) => call.id === 'skin.test'), JSON.stringify(releaseCalls))
+  runtime.applySnapshot(snapshot().snapshot)
+  await flush()
 
   const VideoSettingsDialog = exportsModule.__components?.VideoSettingsDialog
   check('video dialog is exported for testing', typeof VideoSettingsDialog === 'function')

@@ -588,6 +588,7 @@ window.__ModuleLoader__.load({
       refreshVideo: (id) => request('refresh-video', { method: 'POST', body: JSON.stringify({ id }) }),
       delete: (id) => request('delete', { method: 'POST', body: JSON.stringify({ id }) }),
       recolor: (id, palette) => request('recolor', { method: 'POST', body: JSON.stringify({ id, palette }) }),
+      releaseVideo: (id) => request('release-video', { method: 'POST', body: JSON.stringify({ id }) }),
       rename: (id, name) => request('rename', { method: 'POST', body: JSON.stringify({ id, name }) }),
       design: (input) => request('design', { method: 'POST', body: JSON.stringify(input) }),
       models: () => request('models'),
@@ -700,6 +701,9 @@ window.__ModuleLoader__.load({
           } catch {
             /* already detached */
           }
+          // Dropping the sources and calling load() is what tells Chromium to
+          // throw away the media buffer, and with it the byte-range responses it
+          // still holds open on the file.
           try {
             element.removeAttribute('src')
             element.load?.()
@@ -707,11 +711,30 @@ window.__ModuleLoader__.load({
             /* already detached */
           }
         }
+        // The browser-side buffer can linger after the element is gone, which on
+        // Windows keeps video.mp4 locked until the app exits. Ask the Host to
+        // release the last handle for the theme that just stopped playing.
+        releaseVideoHandle()
         try {
           layer?.remove()
         } catch {
           /* already detached */
         }
+      }
+
+      /** Tell the Host to drop any OS-level handle on the last video's file. */
+      function releaseVideoHandle() {
+        const id = appliedId
+        if (typeof id !== 'string') return
+        api
+          .releaseVideo(id)
+          .then((payload) => {
+            // The Host answers "released" or "inUse" (the browser still holds
+            // it). A still-locked file retries once after the element teardown
+            // has actually been applied by the renderer.
+            if (payload?.lock === 'inUse') setTimeout(() => api.releaseVideo(id).catch(() => {}), 700)
+          })
+          .catch(() => {})
       }
 
       function mountVideo(skin) {
