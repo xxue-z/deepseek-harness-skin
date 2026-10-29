@@ -5,7 +5,7 @@
  * calls, and registers the `skin_theme` agent tool. The Web half (client.js)
  * renders the manager and applies the selected skin through `ctx.theme`.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { rename } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -26,6 +26,53 @@ const PACKAGE_DIR = dirname(fileURLToPath(import.meta.url))
 
 /** Where the client stages a downloaded release before it is installed. */
 const UPDATE_DIR = 'update'
+
+function isSymlink(path) {
+  try {
+    const stats = lstatSync(path)
+    return stats.isSymbolicLink() || (typeof stats.isJunction === 'function' && stats.isJunction())
+  } catch {
+    return false
+  }
+}
+
+function readRealpath(path) {
+  try {
+    return realpathSync(path)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Swap a staged release into the installed directory.
+ *
+ * The staging check keeps a stray path from being promoted; the link check
+ * keeps a `plugin_manager install_bundle` install (a profile entry that points
+ * at the user's checkout) from being "updated" by renaming, which would move
+ * the link aside and leave the plugin on its old version.
+ *
+ * @param {{ directory: string, target: string, root: string, log?: (message: string) => void }} options
+ */
+export async function installStagedBundle({ directory, target, root, log }) {
+  const backup = `${target}.previous-${Date.now()}`
+  const staged = resolve(directory)
+  if (!staged.startsWith(resolve(root))) throw new Error('更新包不在暂存目录里')
+  if (!existsSync(join(staged, 'package.json'))) throw new Error('更新包缺少 package.json')
+  if (isSymlink(target)) {
+    const link = readRealpath(target) ?? target
+    throw new Error(`当前插件目录是符号链接，指向 ${link}：请到那个目录执行 git pull 更新，或重新 install_bundle`)
+  }
+  await rename(target, backup)
+  try {
+    await rename(staged, target)
+  } catch (error) {
+    // A half-swapped directory would break the next start: put it back.
+    await rename(backup, target).catch(() => log?.(`回滚失败，原目录备份在 ${backup}`))
+    throw error
+  }
+  return { target, backup }
+}
 
 function normalizeConfig(config) {
   const input = config && typeof config === 'object' ? config : {}
@@ -121,22 +168,7 @@ export function apply(ctx, config) {
     return directory
   }
 
-  service.installStagedUpdate = async (directory) => {
-    const target = PACKAGE_DIR
-    const backup = `${target}.previous-${Date.now()}`
-    const staged = resolve(directory)
-    if (!staged.startsWith(resolve(store.root))) throw new Error('更新包不在暂存目录里')
-    if (!existsSync(join(staged, 'package.json'))) throw new Error('更新包缺少 package.json')
-    await rename(target, backup)
-    try {
-      await rename(staged, target)
-    } catch (error) {
-      // A half-swapped directory would break the next start: put it back.
-      await rename(backup, target).catch(() => log(`回滚失败，原目录备份在 ${backup}`))
-      throw error
-    }
-    return { target, backup }
-  }
+  service.installStagedUpdate = (directory) => installStagedBundle({ directory, target: PACKAGE_DIR, root: store.root, log })
 
   // Bundled themes: copied into the library once, so a fresh install opens on
   // two ready-made skins instead of an empty list. Deleting one stays deleted.

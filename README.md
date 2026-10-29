@@ -77,6 +77,18 @@ plugin_manager install_bundle  C:\ProgramCustom\Tool\dsh-skin-1.0.7
 | 仓库地址 | 在插件管理器里卸载后重新安装，或指定新版本，然后重启 |
 | 设置页「下载并更新」 | 直接点，会替换插件目录并刷新页面，随后重启一次应用 |
 
+「下载并更新」只对**插件自己目录**的安装有效（profile 里是真实拷贝）。如果 profile 里那条是指向
+安装目录的**符号链接 / junction**（`install_bundle` 就是把目录链接进来），点它会提示「当前插件目录是
+符号链接，请到那个目录执行 `git pull` 或重新 install_bundle」——不会替换任何文件。仓库安装的更新走：
+
+```bash
+cd <仓库目录>
+git pull            # 或 git checkout v1.0.9
+```
+
+然后重启应用。另外，这个按钮由浏览器先跨域去 GitHub 取 release 附件，网络不通（`Failed to fetch`）
+时请打开「打开发布页」手动下载附件，再按「Release 目录」那一行安装。
+
 **升级到改了包名的版本**（例如从 `@local/dsh-skin` 到 `@xxue-z/dsh-skin`）时，必须先卸载旧名字那条：
 loader 里残留的旧条目会继续去找一个已不存在的目录，表现为
 `failed to import: ENOENT ... index.js`。

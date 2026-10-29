@@ -1,6 +1,6 @@
 {
   "name": "@xxue-z/dsh-skin",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "private": true,
   "type": "module",
   "description": "Theme skin manager for DeepSeek Harness: Codex-Skins import, wallpaper skins, and an AI theme designer.",

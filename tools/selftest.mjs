@@ -5,7 +5,7 @@
  *
  *   node tools/selftest.mjs [codexThemesDir]
  */
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -22,6 +22,7 @@ import { createSkinTool } from '../lib/tool.js'
 import { decodeVideoDataUrl } from '../lib/service.js'
 import { checkForUpdate, compareVersions, parseVersion } from '../lib/update.js'
 import { listBundled, seedBundledThemes } from '../lib/bundled.js'
+import { installStagedBundle } from '../index.js'
 
 /** Package root, shared with the bundled-theme checks below. */
 const here = dirname(fileURLToPath(import.meta.url))
@@ -488,6 +489,56 @@ console.log('update check')
     },
   })
   check('an unreachable GitHub is not an error the page throws on', offline.error === 'offline' && offline.current === '1.0.2')
+}
+
+console.log('update install')
+{
+  // The profile links the package (plugin_manager install_bundle), so the
+  // directory the plugin runs in can be a junction into the user's checkout.
+  // installStagedBundle must refuse that rename — otherwise only the link is
+  // moved aside and the plugin silently stays on its old version.
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-skin-install-'))
+  const library = join(directory, 'skin')
+  const install = join(directory, 'checkout')
+  mkdirSync(install)
+  writeFileSync(join(install, 'package.json'), JSON.stringify({ name: '@xxue-z/dsh-skin', version: '1.0.8' }))
+  const staging = join(library, 'update', 'v-1.0.9-x')
+  mkdirSync(staging, { recursive: true })
+  writeFileSync(join(staging, 'package.json'), JSON.stringify({ name: '@xxue-z/dsh-skin', version: '1.0.9' }))
+  const readVersionAt = (path) => JSON.parse(readFileSync(join(path, 'package.json'), 'utf8')).version
+
+  // The plain case first: an ordinary installed directory is swapped.
+  const plain = join(directory, 'plain')
+  mkdirSync(plain)
+  writeFileSync(join(plain, 'package.json'), JSON.stringify({ name: '@xxue-z/dsh-skin', version: '1.0.8' }))
+  const swapped = await installStagedBundle({ directory: staging, target: plain, root: library })
+  check('an ordinary install is replaced', readVersionAt(plain) === '1.0.9' && readVersionAt(swapped.backup) === '1.0.8')
+
+  // A link has to be refused before anything is renamed.
+  const restaged = join(library, 'update', 'v-1.0.9-y')
+  mkdirSync(restaged, { recursive: true })
+  writeFileSync(join(restaged, 'package.json'), JSON.stringify({ name: '@xxue-z/dsh-skin', version: '1.0.9' }))
+  const link = join(directory, 'linked')
+  symlinkSync(install, link, process.platform === 'win32' ? 'junction' : 'dir')
+  let refusal = null
+  try {
+    await installStagedBundle({ directory: restaged, target: link, root: library })
+  } catch (error) {
+    refusal = error
+  }
+  check('a linked install is refused', refusal !== null && /符号链接/.test(refusal.message), String(refusal?.message))
+  check('the refusal names the checkout to update', refusal !== null && refusal.message.includes(install), String(refusal?.message))
+  check('the linked install is left on its version', readVersionAt(link) === '1.0.8')
+
+  // The staging guard is checked before either branch touches the disk.
+  let outside = null
+  try {
+    await installStagedBundle({ directory: install, target: plain, root: library })
+  } catch (error) {
+    outside = error
+  }
+  check('a bundle outside the skin library is refused', outside !== null && /暂存目录/.test(outside.message), String(outside?.message))
+  rmSync(directory, { recursive: true, force: true })
 }
 
 console.log('bundled themes')

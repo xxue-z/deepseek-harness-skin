@@ -106,6 +106,10 @@ window.__ModuleLoader__.load({
         'about.installing': '正在替换文件…',
         'about.installed': '已更新，正在重新加载…',
         'about.openRelease': '打开发布页',
+        'about.fetchFailed':
+          '下载更新包失败：浏览器取不到 GitHub 上的 release 文件（常见原因：网络不通、需要代理，或浏览器拦截了跨域下载）。可以在浏览器里打开“打开发布页”，手动下载附件后重新安装。',
+        'about.manualRestart': '文件已替换，请重启一次应用后生效（这是手动安装的目录，插件无法自更新）。',
+        'about.retry': '可以再点一次「下载并更新」重试',
         'design.base': '以当前主题为基底微调',
         'design.working': '正在设计…',
         'design.done': '已生成',
@@ -285,6 +289,10 @@ window.__ModuleLoader__.load({
         'about.installing': 'Replacing files…',
         'about.installed': 'Updated — reloading…',
         'about.openRelease': 'Open release',
+        'about.fetchFailed':
+          'Could not download the release asset: the browser could not reach GitHub (network/proxy, or the download was blocked). Open the release page and install the attached bundle by hand instead.',
+        'about.manualRestart': 'Files were replaced. Restart the app once to load them — this install is a directory the plugin cannot restart by itself.',
+        'about.retry': 'click “Download and update” again to retry',
         'design.base': 'Restyle the selected skin',
         'design.working': 'Designing…',
         'design.done': 'Created',
@@ -2588,6 +2596,7 @@ let videoSettings = { autoplay: true, muted: true }
       const [checking, setChecking] = useState(false)
       const [error, setError] = useState(null)
       const [phase, setPhase] = useState(null)
+      const [manual, setManual] = useState(null)
       if (check === null && release !== null && release !== undefined) setCheck(release)
       const run = async () => {
         setChecking(true)
@@ -2607,29 +2616,42 @@ let videoSettings = { autoplay: true, muted: true }
       const install = async () => {
         setPhase('downloading')
         setError(null)
+        let downloaded = false
         try {
           // Prefer the release asset the workflow built and verified; the
           // tag tarball stays as the fallback for a release without one.
           const url =
             check.asset?.url ??
             `https://codeload.github.com/${info.repository}/tar.gz/refs/tags/${encodeURIComponent(check.tag)}`
-          const response = await fetch(url)
+          let response
+          try {
+            response = await fetch(url)
+          } catch (failure) {
+            // "Failed to fetch" is the browser's opaque word for DNS, TLS,
+            // CORS and offline — none of which say what to do next.
+            throw new Error(`${t('about.fetchFailed')}（${failure instanceof Error ? failure.message : String(failure)}）`)
+          }
           if (!response.ok) throw new Error(`下载失败（HTTP ${response.status}）`)
           const bytes = new Uint8Array(await response.arrayBuffer())
+          downloaded = true
           if (check.checksum?.url) {
             const expected = (await (await fetch(check.checksum.url)).text()).trim().split(/\s+/)[0]
             const digest = await sha256Hex(bytes)
             if (expected && digest.toLowerCase() !== expected.toLowerCase()) throw new Error('下载的更新包校验和不符，已取消安装')
           }
           setPhase('installing')
-          await api.installUpdate(bytes)
+          const result = await api.installUpdate(bytes)
           setPhase('done')
-          // The Host half is now the new version: reload so the page picks up
-          // the new client module too.
-          setTimeout(() => window.location.reload(), 1200)
+          // A directory the plugin owns reloads itself; one installed by hand
+          // (a bundle the profile links to) has to be restarted by the user.
+          if (result?.reload === false) setManual(result.restartMessage ?? t('about.manualRestart'))
+          else setTimeout(() => window.location.reload(), 1200)
         } catch (failure) {
           setPhase(null)
-          setError(failure instanceof Error ? failure.message : String(failure))
+          const message = failure instanceof Error ? failure.message : String(failure)
+          // The staged bytes are on disk once the download finished, so the
+          // next click is free and worth suggesting.
+          setError(downloaded ? `${message}（${t('about.retry')}）` : message)
         }
       }
       const latest = check?.latest ?? null
@@ -2669,8 +2691,10 @@ let videoSettings = { autoplay: true, muted: true }
                     : t('about.noRelease'),
               )
             : null,
+          // A manual install keeps the sheet open, and the action row has to
+          // come back with it — otherwise a successful replace looks frozen.
           phase === 'done'
-            ? h('p', { className: 'dsks-hint' }, t('about.installed'))
+            ? h('p', { className: manual ? 'dsks-hint dsks-warn' : 'dsks-hint' }, manual ?? t('about.installed'))
             : phase !== null
               ? h('p', { className: 'dsks-hint' }, phase === 'downloading' ? t('about.downloading') : t('about.installing'))
               : null,
@@ -2681,7 +2705,7 @@ let videoSettings = { autoplay: true, muted: true }
           'div',
           { className: 'dsks-about-actions' },
           h(Button, { onClick: run, busy: checking }, checking ? t('about.checking') : t('about.check')),
-          check?.updateAvailable && phase === null
+          check?.updateAvailable && phase !== 'downloading' && phase !== 'installing'
             ? h(Button, { variant: 'primary', icon: 'download', onClick: install }, t('about.install'))
             : null,
           check?.url ? h(Button, { onClick: () => window.open(check.url, '_blank', 'noopener') }, t('about.openRelease')) : null,
