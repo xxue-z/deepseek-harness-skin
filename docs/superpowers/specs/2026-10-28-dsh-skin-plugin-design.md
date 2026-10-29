@@ -29,7 +29,7 @@
 
 ## 2. 形态
 
-一个持久化 bundle：`@local/dsh-skin`，同时含 Host 半（Node）和 Web 客户端半（浏览器）。
+一个持久化 bundle：`deepseek-harness-skin`，同时含 Host 半（Node）和 Web 客户端半（浏览器）。
 
 - Host 半：读取/写入主题库、扫描与转换 Codex 主题、ZIP 解包、调用 LLM 生成主题、
   注册 `skin_*` 工具、提供 `/skin/...` HTTP 接口。

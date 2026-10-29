@@ -1,9 +1,21 @@
 # 更新日志
 
-版本号与 `package.json` 的 `version` 一致；同一个版本对应一个 git 标签（`v1.0.4`）和一次 GitHub Release。
+版本号与 `package.json` 的 `version` 一致；同一个版本对应一个 git 标签（`v1.0.5`）和一次 GitHub Release。
 每次发布更新三处：这里加一节、`package.json` 提升版本、打标签推送——剩下的由 GitHub Actions 自动完成。
 
-该插件从桌面版自带的那个版本起步：当时的实例名是 `@local/dsh-skin`，版本号记作 `1.0.1`。
+该插件从桌面版自带的那个版本起步：当时的实例名是 `@local/dsh-skin`，版本号记作 `1.0.1`；
+从 1.0.5 起包名统一为 `deepseek-harness-skin`。
+
+## 1.0.5 — 2026-10-29
+
+**修复安装后插件无法加载**
+
+- `cordis.patch.yml` 仍指向旧实例名 `@local/dsh-skin`，而安装的包名是 `deepseek-harness-skin`，加载器因此报 `ERR_MODULE_NOT_FOUND` 并跳过插件。行 id 保持 `dsh-skin` 不变（保留旧配置覆盖），模块名统一为包名。
+- `index.js` 的 `name`、`client.js` 注册的模块 id、调试面板里的客户端模块名同步为包名。
+
+**一并带上（1.0.4 之后的修复）**
+
+- 设置分区注册失败时不再静默消失：会写入控制台并显示一条可见的错误提示。
 
 ## 1.0.4 — 2026-10-29
 

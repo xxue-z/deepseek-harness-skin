@@ -62,7 +62,7 @@ skin_theme {"action":"transparency","id":"skin.crimson-mecha-nova","transparency
   token 映射见 [docs/superpowers/specs/2026-10-28-dsh-skin-plugin-design.md](docs/superpowers/specs/2026-10-28-dsh-skin-plugin-design.md)。
 - **底色方案**：浅色/深色不是按主题里写的 `appearance` 选的，而是按面板/画布亮度算出来的
   （插件只换 alias token，其余表面沿用宿主内置调色板，选错就整片变黑）。
-- **壁纸**：插件自有 `<style data-plugin="@local/dsh-skin">` 注入 `body::before` 固定图层。
+- **壁纸**：插件自有 `<style data-plugin="deepseek-harness-skin">` 注入 `body::before` 固定图层。
 - **动态壁纸**：Codex 主题里的 `background.mp4` 会被一起导入（≤16 MB、H.264/`avc1`、
   单视频轨），由 `/skin/assets/<id>/video` 以支持 `Range` 的方式输出，客户端在
   `#root` 之下挂一个固定 `<video>` 层。海报始终是底：视频 `loadeddata` 之后才盖上，

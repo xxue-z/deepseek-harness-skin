@@ -1,5 +1,5 @@
 /**
- * @local/dsh-skin — Web client half.
+ * deepseek-harness-skin — Web client half.
  *
  * Two jobs:
  *   1. apply the selected wallpaper skin to the running app (alias tokens +
@@ -9,13 +9,13 @@
  * The Host half owns the library; this half talks to it over `/skin/api`.
  */
 window.__ModuleLoader__.load({
-  id: '@local/dsh-skin',
+  id: 'deepseek-harness-skin',
   factory(require) {
     const React = require('react')
     const h = React.createElement
     const { useCallback, useEffect, useMemo, useRef, useState } = React
 
-    const PLUGIN_ID = '@local/dsh-skin'
+    const PLUGIN_ID = 'deepseek-harness-skin'
     const API_ROOT = '/skin/api'
     /** Version and update endpoints sit beside the skin API, not under it. */
     const ROOT = '/skin'
