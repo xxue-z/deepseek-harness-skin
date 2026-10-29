@@ -1,9 +1,16 @@
 # 更新日志
 
-版本号与 `package.json` 的 `version` 一致；同一个版本对应一个 git 标签（`v1.0.3`）和一次 GitHub Release。
+版本号与 `package.json` 的 `version` 一致；同一个版本对应一个 git 标签（`v1.0.4`）和一次 GitHub Release。
 每次发布更新三处：这里加一节、`package.json` 提升版本、打标签推送——剩下的由 GitHub Actions 自动完成。
 
 该插件从桌面版自带的那个版本起步：当时的实例名是 `@local/dsh-skin`，版本号记作 `1.0.1`。
+
+## 1.0.4 — 2026-10-29
+
+**安装包只装该装的东西**
+
+- Release 附件改为真正的安装包：只包含 `index.js`、`client.js`、`lib/`、`locale/`、`cordis.patch.yml`、`icon.svg`、`package.json` 和 `README.md`、`CHANGELOG.md`；`.github/`、`docs/`、`tools/`、`.gitignore` 不再打包。
+- 打包清单以 `package.json` 的 `files` 字段为唯一来源，并修正了通配符（`locale/*.json`）和目录条目（`lib`）的展开——1.0.3 的包里 `lib/` 曾经整个丢失。
 
 ## 1.0.3 — 2026-10-29
 
