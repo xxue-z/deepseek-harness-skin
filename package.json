@@ -1,9 +1,17 @@
 {
-  "name": "@local/dsh-skin",
-  "version": "1.0.0",
+  "name": "deepseek-harness-skin",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "description": "Theme skin manager for DeepSeek Harness: Codex-Skins import, wallpaper skins, and an AI theme designer.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xxue-z/deepseek-harness-skin.git"
+  },
+  "homepage": "https://github.com/xxue-z/deepseek-harness-skin",
+  "pkg": {
+    "name": "@local/dsh-skin"
+  },
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -16,7 +24,8 @@
     "lib",
     "cordis.patch.yml",
     "locale/*.json",
-    "icon.svg"
+    "icon.svg",
+    "CHANGELOG.md"
   ],
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },

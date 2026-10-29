@@ -19,6 +19,7 @@ import { zipSync } from './zip-fixture.mjs'
 import { makeMp4 } from './mp4-fixture.mjs'
 import { createSkinTool } from '../lib/tool.js'
 import { decodeVideoDataUrl } from '../lib/service.js'
+import { checkForUpdate, compareVersions, parseVersion } from '../lib/update.js'
 
 let failures = 0
 function check(name, condition, detail = '') {
@@ -292,6 +293,46 @@ console.log('design sources')
   check('the tool video is stored', toolSkin?.video?.width === 1600)
   check('the tool details reach the skin', toolSkin?.origin?.details?.name === '来自工具')
   rmSync(dir, { recursive: true, force: true })
+}
+
+console.log('update check')
+{
+  check('parses a plain version', JSON.stringify(parseVersion('v1.0.2')) === JSON.stringify({ major: 1, minor: 0, patch: 2, pre: null }))
+  check('orders releases', compareVersions('1.0.2', '1.0.1') > 0 && compareVersions('1.0.2', '1.0.2') === 0 && compareVersions('1.10.0', '1.9.9') > 0)
+  check('a final release beats its pre-release', compareVersions('1.0.2', '1.0.2-rc.1') > 0)
+  check('garbage versions compare equal', compareVersions('not-a-version', '1.0.0') === 0)
+
+  const respond = (body, status = 200) => ({
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  })
+  const withFetch = (handler) => checkForUpdate({ version: '1.0.2', repository: 'xxue-z/deepseek-harness-skin', fetchImpl: async (url) => handler(String(url)) })
+
+  const newer = await withFetch(() => respond({ tag_name: 'v1.0.3', html_url: 'https://github.com/x/y/releases/tag/v1.0.3', body: 'notes', published_at: '2026-10-29T00:00:00Z' }))
+  check('a newer tag asks for an update', newer.updateAvailable === true && newer.latest === '1.0.3' && newer.mode === 'release', JSON.stringify(newer))
+  check('release notes come from the release', newer.notes === 'notes' && newer.url.endsWith('/v1.0.3'))
+  check('updates are never silent', newer.autoUpdate === false)
+
+  const same = await withFetch(() => respond({ tag_name: 'v1.0.2' }))
+  check('the installed release is up to date', same.updateAvailable === false && same.latest === '1.0.2')
+
+  const noRelease = await withFetch((url) => (url.includes('/releases/latest') ? respond({ message: 'Not Found' }, 404) : respond([{ name: 'v1.0.4' }])))
+  check('falls back to tags when no release exists', noRelease.mode === 'tag' && noRelease.latest === '1.0.4' && noRelease.updateAvailable === true, JSON.stringify(noRelease))
+
+  const branchOnly = await withFetch((url) => (url.includes('/releases/latest') || url.includes('/tags') ? respond({ message: 'Not Found' }, 404) : respond({ sha: 'abc123' })))
+  check('without releases or tags it reports the branch head', branchOnly.mode === 'branch', JSON.stringify(branchOnly))
+
+  const broken = await withFetch(() => respond({ message: 'boom' }, 500))
+  check('a failed check reports instead of throwing', broken.error !== null && broken.updateAvailable === false, JSON.stringify(broken))
+
+  const offline = await checkForUpdate({
+    version: '1.0.2',
+    fetchImpl: async () => {
+      throw new Error('offline')
+    },
+  })
+  check('an unreachable GitHub is not an error the page throws on', offline.error === 'offline' && offline.current === '1.0.2')
 }
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`)

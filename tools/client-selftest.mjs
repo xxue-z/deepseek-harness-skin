@@ -206,6 +206,18 @@ const modelCatalog = {
   failures: [],
 }
 const designCalls = []
+const releaseInfo = {
+  current: '1.0.2',
+  latest: '1.0.3',
+  updateAvailable: true,
+  mode: 'release',
+  tag: 'v1.0.3',
+  url: 'https://github.com/xxue-z/deepseek-harness-skin/releases/tag/v1.0.3',
+  notes: 'notes',
+  publishedAt: '2026-10-29T00:00:00Z',
+  autoUpdate: true,
+  error: null,
+}
 
 const lightSkin = {
   id: 'skin.auto-light',
@@ -241,6 +253,8 @@ globalThis.fetch = async (url, options) => {
   const path = String(url)
   let payload
   if (path.includes('/skin/api/snapshot')) payload = snapshot()
+  else if (path.endsWith('/skin/version')) payload = { ok: true, version: '1.0.2', repository: 'xxue-z/deepseek-harness-skin', url: 'https://github.com/xxue-z/deepseek-harness-skin' }
+  else if (path.endsWith('/skin/update-check')) payload = { ok: true, ...releaseInfo }
   else if (path.includes('/skin/api/models')) payload = { ok: true, models: modelCatalog }
   else if (path.includes('/skin/api/design')) {
     designCalls.push(JSON.parse(options?.body ?? '{}'))
@@ -593,6 +607,60 @@ console.log('design dialog')
     // Mood and notes were the brief's own words in three boxes; they are gone.
     check('the mood and notes inputs are gone', !text.includes('design.moodPlaceholder') && !text.includes('design.notesPlaceholder'))
     check('the old free-text model inputs are gone', !JSON.stringify(tree).includes('"placeholder":"qwen-token-plan-cn"'))
+  }
+}
+
+console.log('version badge and update sheet')
+{
+  await flush()
+  // The catalog arrives asynchronously; read the page's runtime directly and
+  // force the snapshot it renders from.
+  const liveRuntime = slotRegistrations[0].component({}).props.runtime
+  await liveRuntime.load()
+  await flush()
+  const page = slotRegistrations[0].component({})
+  const savedCursor = hookCursor
+  const savedStore = hookStore.slice()
+  hookCursor = 0
+  const tree = page.type(page.props)
+  hookCursor = savedCursor
+  hookStore.length = 0
+  hookStore.push(...savedStore)
+  const json = JSON.stringify(tree)
+  check('header shows the version next to the title', json.includes('dsks-version') && json.includes('v1.0.2'), json.slice(0, 240))
+
+  const AboutDialog = exportsModule.__components?.AboutDialog
+  check('about dialog is exported for testing', typeof AboutDialog === 'function')
+  if (typeof AboutDialog === 'function') {
+    // Each render starts from an empty hook store: reusing a previous render's
+    // slots would hand the dialog a stale `release` and hide the state under test.
+    const renderAbout = (props) => {
+      const cursor = hookCursor
+      const store = hookStore.slice()
+      hookCursor = 0
+      hookStore.length = 0
+      const dialog = AboutDialog({
+        t: (key, params) => (params ? `${key}:${Object.values(params).join(',')}` : key),
+        version: '1.0.2',
+        info: { repository: 'xxue-z/deepseek-harness-skin', url: 'https://github.com/xxue-z/deepseek-harness-skin' },
+        release: null,
+        onClose: () => {},
+        ...props,
+      })
+      hookCursor = cursor
+      hookStore.length = 0
+      hookStore.push(...store)
+      return JSON.stringify(dialog)
+    }
+    const fresh = renderAbout({})
+    check('sheet shows the repository link', fresh.includes('github.com/xxue-z/deepseek-harness-skin'))
+    check('sheet links the release notes', fresh.includes('CHANGELOG.md'))
+    check('sheet offers a check-update button', fresh.includes('about.check'))
+    const newer = renderAbout({ release: { ...releaseInfo, current: '1.0.2', latest: '1.0.3', tag: 'v1.0.3', updateAvailable: true } })
+    check('a newer release is announced', newer.includes('about.updateAvailable'), newer.slice(0, 400))
+    check('a newer release offers the download', newer.includes('about.install'))
+    const current = renderAbout({ release: { ...releaseInfo, updateAvailable: false, latest: '1.0.2', tag: 'v1.0.2' } })
+    check('the same version reports up to date', current.includes('about.upToDate') && !current.includes('about.install'))
   }
 }
 

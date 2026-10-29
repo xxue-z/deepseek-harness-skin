@@ -17,6 +17,8 @@ window.__ModuleLoader__.load({
 
     const PLUGIN_ID = '@local/dsh-skin'
     const API_ROOT = '/skin/api'
+    /** Version and update endpoints sit beside the skin API, not under it. */
+    const ROOT = '/skin'
 
     /* ------------------------------------------------------------------ */
     /* locale                                                              */
@@ -88,6 +90,22 @@ window.__ModuleLoader__.load({
         'design.modelsFailed': '读取模型列表失败，将使用默认模型',
         'design.noImageMark': '（纯文本）',
         'design.modelBlind': '这个模型不能看图：会按描述和取色生成，首帧不会发给它。换一个支持图片的模型可以按画面设计。',
+        'about.title': '关于主题皮肤',
+        'about.version': '当前版本',
+        'about.repo': '项目地址',
+        'about.changelog': '版本说明',
+        'about.notes': '检查更新',
+        'about.notesSource': '插件以源码形式装在本地，更新会替换整个插件目录并重新加载；也可以直接用 git 拉取新标签。',
+        'about.check': '检查更新',
+        'about.checking': '正在检查…',
+        'about.updateAvailable': '有新版本 {version}',
+        'about.upToDate': '已是最新（{version}）',
+        'about.noRelease': '还没有发布版本',
+        'about.install': '下载并更新',
+        'about.downloading': '正在下载更新包…',
+        'about.installing': '正在替换文件…',
+        'about.installed': '已更新，正在重新加载…',
+        'about.openRelease': '打开发布页',
         'design.base': '以当前主题为基底微调',
         'design.working': '正在设计…',
         'design.done': '已生成',
@@ -209,6 +227,22 @@ window.__ModuleLoader__.load({
         'design.modelsFailed': 'Could not read the model list; the default model is used',
         'design.noImageMark': ' (text only)',
         'design.modelBlind': 'This model cannot see images: it designs from the description and colours, and the first frame is not sent. Pick an image-capable model to design from the picture.',
+        'about.title': 'About Theme Skins',
+        'about.version': 'Version',
+        'about.repo': 'Repository',
+        'about.changelog': 'Release notes',
+        'about.notes': 'Updates',
+        'about.notesSource': 'The plugin is installed from source. Updating replaces the whole plugin directory and reloads it; pulling the new tag works too.',
+        'about.check': 'Check for updates',
+        'about.checking': 'Checking…',
+        'about.updateAvailable': 'Version {version} is available',
+        'about.upToDate': 'Up to date ({version})',
+        'about.noRelease': 'No release published yet',
+        'about.install': 'Download and update',
+        'about.downloading': 'Downloading the update…',
+        'about.installing': 'Replacing files…',
+        'about.installed': 'Updated — reloading…',
+        'about.openRelease': 'Open release',
         'design.base': 'Restyle the selected skin',
         'design.working': 'Designing…',
         'design.done': 'Created',
@@ -495,7 +529,23 @@ window.__ModuleLoader__.load({
       return payload
     }
 
+    /** Same response contract, but for the routes beside `/skin/api`. */
+    async function rootRequest(path, options) {
+      const response = await fetch(`${ROOT}/${path}`, options)
+      let payload = null
+      try {
+        payload = await response.json()
+      } catch {
+        throw new Error(`接口返回异常（HTTP ${response.status}）`)
+      }
+      if (!payload || payload.ok !== true) throw new Error(payload?.error ?? `接口返回异常（HTTP ${response.status}）`)
+      return payload
+    }
+
     const api = {
+      version: () => rootRequest('version'),
+      checkUpdate: () => rootRequest('update-check'),
+      installUpdate: (bytes) => rootRequest('update/install', { method: 'POST', body: bytes }),
       snapshot: () => request('snapshot'),
       ping: () => request('ping', { method: 'POST', body: '{}' }),
       pingStatus: (status) => request('ping', { method: 'POST', body: JSON.stringify(status) }),
@@ -1275,8 +1325,29 @@ window.__ModuleLoader__.load({
       const [notice, setNotice] = useState(null)
       const [dialog, setDialog] = useState(null)
       const [draftTransparency, setDraftTransparency] = useState(null)
+      const [version, setVersion] = useState('—')
+      const [info, setInfo] = useState({ repository: 'xxue-z/deepseek-harness-skin', url: 'https://github.com/xxue-z/deepseek-harness-skin' })
+      // Latest release, checked once at startup; the header badge reads it.
+      const [release, setRelease] = useState(null)
       const fileInput = useRef(null)
       const commitTimer = useRef(null)
+
+      useEffect(() => {
+        let cancelled = false
+        api
+          .version()
+          .then((payload) => {
+            if (cancelled) return
+            setVersion(payload.version)
+            setInfo({ repository: payload.repository, url: payload.url })
+          })
+          .catch(() => {})
+        // Only ask GitHub when the sheet is opened, so an offline machine never
+        // pays a timeout just for opening settings; the dialog refreshes it.
+        return () => {
+          cancelled = true
+        }
+      }, [])
 
       useEffect(() => {
         const unsubscribe = runtime.subscribe((next) => {
@@ -1432,7 +1503,24 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'dsks-header-text' },
-            h('h2', { className: 'dsks-title' }, t('section.title')),
+            h(
+              'h2',
+              { className: 'dsks-title' },
+              h('span', null, t('section.title')),
+              // Small, secondary, and clickable: the version opens the release
+              // sheet. A newer release tints it so the badge itself reports it.
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dsks-version',
+                  'data-update': release?.updateAvailable ? '' : undefined,
+                  title: release?.updateAvailable ? t('about.updateAvailable', { version: release.latest ?? '' }) : t('about.title'),
+                  onClick: () => setDialog('about'),
+                },
+                `v${version}`,
+              ),
+            ),
             h('p', { className: 'dsks-subtitle' }, t('section.desc')),
           ),
           h(
@@ -1500,6 +1588,9 @@ window.__ModuleLoader__.load({
                 h(Button, { key: 'delete', variant: 'danger', busy: busy === 'delete', onClick: () => onDelete(selected.id) }, t('action.delete')),
               ],
             })
+          : null,
+        dialog === 'about'
+          ? h(AboutDialog, { t, version, info, release, onChecked: setRelease, onClose: () => setDialog(null) })
           : null,
         dialog === 'video'
           ? h(VideoSettingsDialog, { t, runtime, onClose: () => setDialog(null) })
@@ -1697,6 +1788,115 @@ window.__ModuleLoader__.load({
       if (Number.isNaN(date.getTime())) return '—'
       const pad = (number) => String(number).padStart(2, '0')
       return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+    }
+
+    /**
+     * Version sheet: what this build is, where it comes from, and the update.
+     *
+     * The update path matches how the plugin is installed — a bundle that lives
+     * in a directory. Downloading a release replaces that directory and reloads
+     * the Host and the page; nothing outside the package is touched.
+     */
+    function AboutDialog({ t, version, info, release, onChecked, onClose }) {
+      // Key the state on the release it was opened with, so an update found at
+      // startup is what the sheet shows on its first paint.
+      const [check, setCheck] = useState(release)
+      const [checking, setChecking] = useState(false)
+      const [error, setError] = useState(null)
+      const [phase, setPhase] = useState(null)
+      if (check === null && release !== null && release !== undefined) setCheck(release)
+      const run = async () => {
+        setChecking(true)
+        setError(null)
+        try {
+          const payload = await api.checkUpdate()
+          setCheck(payload)
+          onChecked?.(payload)
+          return payload
+        } catch (failure) {
+          setError(failure instanceof Error ? failure.message : String(failure))
+          return null
+        } finally {
+          setChecking(false)
+        }
+      }
+      const install = async () => {
+        setPhase('downloading')
+        setError(null)
+        try {
+          // The tarball route needs no auth and is served by GitHub's CDN.
+          const url = `https://codeload.github.com/${info.repository}/tar.gz/refs/tags/${encodeURIComponent(check.tag)}`
+          const response = await fetch(url)
+          if (!response.ok) throw new Error(`下载失败（HTTP ${response.status}）`)
+          const bytes = await response.arrayBuffer()
+          setPhase('installing')
+          await api.installUpdate(new Uint8Array(bytes))
+          setPhase('done')
+          // The Host half is now the new version: reload so the page picks up
+          // the new client module too.
+          setTimeout(() => window.location.reload(), 1200)
+        } catch (failure) {
+          setPhase(null)
+          setError(failure instanceof Error ? failure.message : String(failure))
+        }
+      }
+      const latest = check?.latest ?? null
+      return h(
+        Dialog,
+        {
+          t,
+          title: t('about.title'),
+          description: `${t('about.version')} ${version}`,
+          onClose,
+          width: 'min(520px, 100%)',
+          footer: [h(Button, { key: 'close', onClick: onClose }, t('action.close'))],
+        },
+        h(
+          'div',
+          { className: 'dsks-about' },
+          h(
+            'div',
+            { className: 'dsks-about-row' },
+            h('span', { className: 'dsks-switch-label' }, t('about.repo')),
+            h('a', { className: 'dsks-link', href: info.url, target: '_blank', rel: 'noreferrer noopener' }, info.url.replace(/^https:\/\//, '')),
+          ),
+          h(
+            'div',
+            { className: 'dsks-about-row' },
+            h('span', { className: 'dsks-switch-label' }, t('about.changelog')),
+            h('a', { className: 'dsks-link', href: `${info.url}/blob/master/CHANGELOG.md`, target: '_blank', rel: 'noreferrer noopener' }, 'CHANGELOG.md'),
+          ),
+          h('h4', { className: 'dsks-about-head' }, t('about.notes')),
+          h('p', { className: 'dsks-hint' }, t('about.notesSource')),
+          check !== null
+            ? h(
+                'p',
+                { className: check.updateAvailable ? 'dsks-about-update' : 'dsks-hint' },
+                check.updateAvailable
+                  ? t('about.updateAvailable', { version: latest ?? check.tag ?? '' })
+                  : check.latest
+                    ? t('about.upToDate', { version: check.latest })
+                    : t('about.noRelease'),
+              )
+            : null,
+          phase === 'done'
+            ? h('p', { className: 'dsks-hint' }, t('about.installed'))
+            : phase !== null
+              ? h('p', { className: 'dsks-hint' }, phase === 'downloading' ? t('about.downloading') : t('about.installing'))
+              : null,
+          error ? h('p', { className: 'dsks-error' }, error) : null,
+          check?.error ? h('p', { className: 'dsks-hint dsks-warn' }, check.error) : null,
+        ),
+        h(
+          'div',
+          { className: 'dsks-about-actions' },
+          h(Button, { onClick: run, busy: checking }, checking ? t('about.checking') : t('about.check')),
+          check?.updateAvailable && phase === null
+            ? h(Button, { variant: 'primary', icon: 'download', onClick: install }, t('about.install'))
+            : null,
+          check?.url ? h(Button, { onClick: () => window.open(check.url, '_blank', 'noopener') }, t('about.openRelease')) : null,
+        ),
+      )
     }
 
     function Switch({ id, checked, label, hint, onChange }) {
@@ -2390,6 +2590,16 @@ window.__ModuleLoader__.load({
 .dsks-select:focus{outline:none;border-color:var(--dsw-alias-brand-primary)}
 .dsks-advanced summary{margin-bottom:6px}
 .dsks-warn{color:var(--dsw-alias-state-warn-primary)}
+.dsks-title{display:flex;align-items:baseline;gap:8px}
+.dsks-version{margin:0;padding:0 4px;border:none;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:12px;line-height:18px;font-weight:400;cursor:pointer;border-radius:6px}
+.dsks-version:hover{color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2))}
+.dsks-version:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.dsks-version[data-update]{color:var(--dsw-alias-brand-primary);font-weight:500}
+.dsks-about{display:flex;flex-direction:column;gap:6px}
+.dsks-about-row{display:flex;align-items:baseline;gap:8px;font-size:13px}
+.dsks-about-head{margin:10px 0 0;font-size:13px;font-weight:600}
+.dsks-about-update{color:var(--dsw-alias-brand-primary);font-size:13px;font-weight:500;margin:0}
+.dsks-about-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .dsks-video-layer{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
 .dsks-video-layer video{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .45s ease-out}
 .dsks-video-layer[data-ready] video{opacity:1}
@@ -2418,7 +2628,7 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots'],
       /** Test seam: the row and detail card are unreachable from a static render. */
-      __components: { SkinRow, SkinDetail, ImportDialog, Switch, VideoSettingsDialog, DesignDialog },
+      __components: { SkinRow, SkinDetail, ImportDialog, Switch, VideoSettingsDialog, DesignDialog, AboutDialog },
       apply(ctx) {
         const runtime = createRuntime(ctx)
         ctx.effect(() => runtime.start())

@@ -5,14 +5,24 @@
  * calls, and registers the `skin_theme` agent tool. The Web half (client.js)
  * renders the manager and applies the selected skin through `ctx.theme`.
  */
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { rename } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createSkinHandler } from './lib/api.js'
 import { defaultCodexDirs, SkinService } from './lib/service.js'
 import { SkinStore } from './lib/store.js'
 import { createSkinTool } from './lib/tool.js'
+import { checkForUpdate, readVersion } from './lib/update.js'
 
 export const name = '@local/dsh-skin'
+
+/** The package directory this module was loaded from. */
+const PACKAGE_DIR = dirname(fileURLToPath(import.meta.url))
+
+/** Where the client stages a downloaded release before it is installed. */
+const UPDATE_DIR = 'update'
 
 function normalizeConfig(config) {
   const input = config && typeof config === 'object' ? config : {}
@@ -34,6 +44,14 @@ function normalizeConfig(config) {
   }
 }
 
+function readManifest() {
+  try {
+    return JSON.parse(readFileSync(join(PACKAGE_DIR, 'package.json'), 'utf8').replace(/^\uFEFF/, ''))
+  } catch {
+    return {}
+  }
+}
+
 /**
  * @param {import('@deepseek-ai/cordis').Context} ctx
  * @param {object} config
@@ -52,19 +70,65 @@ export function apply(ctx, config) {
     if (ctx.logger === undefined) console.log(`[dsh-skin] ${message}`)
   }
 
+  // Version and release identity come from the package manifest, so the number
+  // shown in Settings is the same one the tag and the release note carry.
+  const manifest = readManifest()
+  const meta = {
+    version: readVersion(join(PACKAGE_DIR, 'package.json')),
+    repository:
+      typeof manifest.repository?.url === 'string'
+        ? manifest.repository.url.replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '')
+        : 'xxue-z/deepseek-harness-skin',
+  }
+
   const service = new SkinService({
     store,
     config: options,
     getLlm: () => ctx.get('llm'),
     getSelection: () => ctx.get('agentDefaultModel')?.currentSelection(),
     getClientModules: () => ctx.get('clientModules'),
+    meta,
   })
 
-  const handler = createSkinHandler(service, { store, log })
+  const handler = createSkinHandler(service, { store, log, meta })
 
   ctx.inject(['webServer'], (webCtx) => {
     webCtx.effect(() => webCtx.webServer.register({ kind: 'prefix', path: '/skin', handler }))
   })
+
+  // ---- one-click update ------------------------------------------------------
+  // The client downloads the tagged tarball, unpacks it under <DSH_HOME>/skin/
+  // update/<dir>, then asks the Host to swap it with the installed directory.
+  // A plain `git pull` is the other, equally supported path: nothing here
+  // depends on the install being pristine.
+
+  service.updateCheck = (extra = {}) => checkForUpdate({ version: meta.version, repository: meta.repository, ...extra })
+
+  service.stageUpdate = (bytes) => {
+    if (!Buffer.isBuffer(bytes) || bytes.byteLength === 0) throw new Error('更新包为空')
+    const staging = join(store.root, UPDATE_DIR)
+    const directory = join(staging, `v-${meta.version}-${Date.now().toString(36)}`)
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, 'bundle.tgz'), bytes)
+    return directory
+  }
+
+  service.installStagedUpdate = async (directory) => {
+    const target = PACKAGE_DIR
+    const backup = `${target}.previous-${Date.now()}`
+    const staged = resolve(directory)
+    if (!staged.startsWith(resolve(store.root))) throw new Error('更新包不在暂存目录里')
+    if (!existsSync(join(staged, 'package.json'))) throw new Error('更新包缺少 package.json')
+    await rename(target, backup)
+    try {
+      await rename(staged, target)
+    } catch (error) {
+      // A half-swapped directory would break the next start: put it back.
+      await rename(backup, target).catch(() => log(`回滚失败，原目录备份在 ${backup}`))
+      throw error
+    }
+    return { target, backup }
+  }
 
   const toolState = { registered: false, error: null }
   service.getToolState = () => toolState
