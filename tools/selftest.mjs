@@ -7,7 +7,7 @@
  */
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { authoredTransparency, convertCodexTheme, findThemeRoot } from '../lib/convert.js'
 import { SkinStore } from '../lib/store.js'
@@ -44,7 +44,9 @@ console.log('palette')
 
 console.log('convert')
 {
-  const themesDir = process.argv[2] ?? 'C:/Users/deyu.zhu/AppData/Local/CodexDreamSkin/themes'
+  // The local Codex theme folder is a bonus: the script must pass on a machine
+  // that has none (CI), so a missing folder is a skip, not a failure.
+  const themesDir = process.argv[2] ?? join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'CodexDreamSkin', 'themes')
   let entries = []
   try {
     entries = readdirSync(themesDir, { withFileTypes: true }).filter((entry) => entry.isDirectory())
@@ -65,7 +67,27 @@ console.log('convert')
     check(`${entry.name}: appearance`, ['light', 'dark', 'auto'].includes(skin.appearance))
     check(`${entry.name}: wallpaper binary`, wallpaper === null || wallpaper.bytes.byteLength > 1000)
   }
-  check('converted at least one theme', converted > 0, String(converted))
+  // A synthetic pack exercises the converter everywhere; the folder above only
+  // adds coverage when the developer actually has Codex skins installed.
+  const fixture = mkdtempSync(join(tmpdir(), 'dsh-skin-convert-'))
+  mkdirSync(fixture, { recursive: true })
+  writeFileSync(
+    join(fixture, 'theme.json'),
+    JSON.stringify({
+      schemaVersion: 1,
+      id: 'studio.fixture',
+      name: 'Fixture',
+      appearance: 'dark',
+      colors: { background: '#101014', panel: '#191921', panelAlt: '#22222c', accent: '#ff5a7a', text: '#f4f4f8', muted: '#9a9aa8', line: 'rgba(255,255,255,.2)' },
+      art: { focusX: 0.4, focusY: 0.6 },
+    }),
+  )
+  writeFileSync(join(fixture, 'background.jpg'), Buffer.alloc(2048, 7))
+  const synthetic = convertCodexTheme(fixture)
+  check('converts a synthetic pack', synthetic.skin.id === 'skin.fixture' && Object.keys(synthetic.skin.colors).length === 10, JSON.stringify(synthetic.warnings))
+  check('keeps the art focus', synthetic.skin.wallpaper.focusX === 0.4 && synthetic.skin.wallpaper.focusY === 0.6)
+  check('converts at least one theme', converted > 0 || synthetic.skin !== null, String(converted))
+  rmSync(fixture, { recursive: true, force: true })
   check('a plain colour returns 60%', authoredTransparency('#101d20') === 60)
   check('an rgba panel returns its visibility', authoredTransparency('rgba(16, 29, 32, 0.4)') === 60)
 }
@@ -87,7 +109,7 @@ console.log('store + service + api')
   const store = new SkinStore(join(dir, 'skin'))
   store.ensure()
   const service = new SkinService({ store, config: { codexDirs: [] }, getLlm: () => undefined, getSelection: () => undefined })
-  const themesDir = process.argv[2] ?? 'C:/Users/deyu.zhu/AppData/Local/CodexDreamSkin/themes'
+  const themesDir = process.argv[2] ?? join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'CodexDreamSkin', 'themes')
   const firstRoot = (() => {
     try {
       for (const entry of readdirSync(themesDir, { withFileTypes: true })) {
@@ -98,7 +120,22 @@ console.log('store + service + api')
     } catch {
       /* none */
     }
-    return null
+    // No Codex themes on this machine: import a generated pack instead so the
+    // store/service/HTTP paths are covered wherever the suite runs.
+    const fixture = join(dir, 'pack')
+    mkdirSync(fixture, { recursive: true })
+    writeFileSync(
+      join(fixture, 'theme.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: 'studio.import-fixture',
+        name: 'Import Fixture',
+        appearance: 'dark',
+        colors: { background: '#101014', panel: '#191921', panelAlt: '#22222c', accent: '#ff5a7a', text: '#f4f4f8', muted: '#9a9aa8', line: 'rgba(255,255,255,.2)' },
+      }),
+    )
+    writeFileSync(join(fixture, 'background.jpg'), Buffer.alloc(2048, 7))
+    return fixture
   })()
   if (firstRoot !== null) {
     const imported = service.importDirectory(firstRoot)

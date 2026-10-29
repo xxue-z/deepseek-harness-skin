@@ -64,18 +64,22 @@ jobs:
 
       - name: 打包插件
         run: |
+          # The commit the tag points at goes into the packed manifest, so an
+          # installed copy can name its build; the checked-in file is untouched.
+          STAGE="$(mktemp -d)"
+          git archive "$TAG" | tar -x -C "$STAGE"
           node -e "
             const { readFileSync, writeFileSync } = require('node:fs')
-            const manifest = JSON.parse(readFileSync('package.json', 'utf8'))
-            manifest.pkg = { ...(manifest.pkg ?? {}), commit: process.env.GITHUB_SHA }
-            writeFileSync('package.json', JSON.stringify(manifest, null, 2) + '\n')
-          "
-          mkdir -p dist/package
-          tar -czf "dist/deepseek-harness-skin-${TAG}.tar.gz" \
-            --exclude='.git' --exclude='node_modules' --exclude='.scratch' \
-            --transform 's,^\./,,;s,^\([^/]\),package/\1,' \
-            --show-transformed-names \
-            --files-from=<(git ls-files ':!:.*')
+            const path = process.argv[1]
+            const manifest = JSON.parse(readFileSync(path, 'utf8'))
+            manifest.pkg = { ...(manifest.pkg ?? {}), commit: process.env.TAG_COMMIT }
+            writeFileSync(path, JSON.stringify(manifest, null, 2) + '\n')
+          " "$STAGE/package.json"
+          mkdir -p dist
+          tar -czf "dist/deepseek-harness-skin-${TAG}.tar.gz" -C "$STAGE" .
+          rm -rf "$STAGE"
+        env:
+          TAG_COMMIT: ${{ github.sha }}
         shell: bash
 
       - name: 生成校验和
