@@ -1791,6 +1791,15 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * SHA-256 of a downloaded bundle, so a corrupted or swapped asset never
+     * reaches the install step.
+     */
+    async function sha256Hex(bytes) {
+      const digest = await crypto.subtle.digest('SHA-256', bytes)
+      return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+    }
+
+    /**
      * Version sheet: what this build is, where it comes from, and the update.
      *
      * The update path matches how the plugin is installed — a bundle that lives
@@ -1824,13 +1833,21 @@ window.__ModuleLoader__.load({
         setPhase('downloading')
         setError(null)
         try {
-          // The tarball route needs no auth and is served by GitHub's CDN.
-          const url = `https://codeload.github.com/${info.repository}/tar.gz/refs/tags/${encodeURIComponent(check.tag)}`
+          // Prefer the release asset the workflow built and verified; the
+          // tag tarball stays as the fallback for a release without one.
+          const url =
+            check.asset?.url ??
+            `https://codeload.github.com/${info.repository}/tar.gz/refs/tags/${encodeURIComponent(check.tag)}`
           const response = await fetch(url)
           if (!response.ok) throw new Error(`下载失败（HTTP ${response.status}）`)
-          const bytes = await response.arrayBuffer()
+          const bytes = new Uint8Array(await response.arrayBuffer())
+          if (check.checksum?.url) {
+            const expected = (await (await fetch(check.checksum.url)).text()).trim().split(/\s+/)[0]
+            const digest = await sha256Hex(bytes)
+            if (expected && digest.toLowerCase() !== expected.toLowerCase()) throw new Error('下载的更新包校验和不符，已取消安装')
+          }
           setPhase('installing')
-          await api.installUpdate(new Uint8Array(bytes))
+          await api.installUpdate(bytes)
           setPhase('done')
           // The Host half is now the new version: reload so the page picks up
           // the new client module too.

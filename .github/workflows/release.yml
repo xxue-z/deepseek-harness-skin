@@ -1,0 +1,123 @@
+name: release
+
+# 推一个 `v` 开头的标签就发布：跑两套自测，把源码打成插件包并附上校验和，
+# 再用标签对应的 CHANGELOG 小节自动建/t 更新 Release。
+#
+# 只用仓库自带的 GITHUB_TOKEN，不需要任何自建 secret：
+#   contents: write  建 Release、上传附件
+#
+# 更新检查读的是 `/releases/latest`，而预发布不会成为 latest，所以
+# -rc 标签可以先发出去、下载附件验证，再转正式。
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要（重新）发布的标签，例如 v1.0.2
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 标签、package.json、CHANGELOG 三处的版本号必须一致，否则发布出去
+      # 的插件会报告一个和 Release 不同的版本。
+      - name: 校验版本号一致
+        run: |
+          TAG_VERSION="${TAG#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          echo "标签: $TAG_VERSION / package.json: $PKG_VERSION"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::标签 $TAG 与 package.json 的 $PKG_VERSION 不一致"
+            exit 1
+          fi
+          if ! grep -q "^## ${TAG_VERSION}\b" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md 缺少 ${TAG_VERSION} 小节"
+            exit 1
+          fi
+
+      - name: 自测
+        run: |
+          node tools/selftest.mjs
+          node tools/client-selftest.mjs
+
+      - name: 打包插件
+        run: |
+          node -e "
+            const { readFileSync, writeFileSync } = require('node:fs')
+            const manifest = JSON.parse(readFileSync('package.json', 'utf8'))
+            manifest.pkg = { ...(manifest.pkg ?? {}), commit: process.env.GITHUB_SHA }
+            writeFileSync('package.json', JSON.stringify(manifest, null, 2) + '\n')
+          "
+          mkdir -p dist/package
+          tar -czf "dist/deepseek-harness-skin-${TAG}.tar.gz" \
+            --exclude='.git' --exclude='node_modules' --exclude='.scratch' \
+            --transform 's,^\./,,;s,^\([^/]\),package/\1,' \
+            --show-transformed-names \
+            --files-from=<(git ls-files ':!:.*')
+        shell: bash
+
+      - name: 生成校验和
+        run: |
+          cd dist
+          sha256sum "deepseek-harness-skin-${TAG}.tar.gz" > "deepseek-harness-skin-${TAG}.tar.gz.sha256"
+          cat "deepseek-harness-skin-${TAG}.tar.gz.sha256"
+
+      - name: 写发布说明
+        run: |
+          VERSION="${TAG#v}"
+          # CHANGELOG 的版本小节，从 "## ${VERSION}" 到下一个 "## " 之间。
+          node -e "
+            const { readFileSync, writeFileSync } = require('node:fs')
+            const text = readFileSync('CHANGELOG.md', 'utf8')
+            const version = '${VERSION}'
+            const start = text.indexOf('## ' + version)
+            if (start < 0) process.exit(1)
+            const next = text.indexOf('\n## ', start + 1)
+            const section = text.slice(start, next < 0 ? undefined : next).trim()
+            const intro = [
+              '本版源码包见附件（\`deepseek-harness-skin-' + process.env.TAG + '.tar.gz\`，含 sha256）。',
+              '在 Harness 会话里执行 \`plugin_manager install_bundle <解压目录>\` 安装或升级。',
+              '',
+            ].join('\n')
+            writeFileSync('dist/release-notes.md', intro + section + '\n')
+          "
+
+      - name: 创建或更新 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file dist/release-notes.md
+            gh release upload "$TAG" dist/*.tar.gz dist/*.sha256 --clobber
+          else
+            gh release create "$TAG" \
+              --title "${TAG#v} · $(node -p "require('./package.json').description")" \
+              --notes-file dist/release-notes.md \
+              dist/*.tar.gz dist/*.sha256
+          fi
+          # 预发布标签（-rc / -beta）只标记，不抢占 latest，给更新检查留验证空间。
+          case "$TAG" in
+            *-rc*|*-beta*|*-alpha*|*-pre*) gh release edit "$TAG" --prerelease ;;
+          esac

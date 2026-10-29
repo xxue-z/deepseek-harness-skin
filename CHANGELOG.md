@@ -1,9 +1,21 @@
 # 更新日志
 
-版本号与 `package.json` 的 `version` 一致；同一个版本对应一个 git 标签（`v1.0.2`）和一次 GitHub Release。
-每次发布更新三处：这里加一节、`package.json` 提升版本、打标签推送。
+版本号与 `package.json` 的 `version` 一致；同一个版本对应一个 git 标签（`v1.0.3`）和一次 GitHub Release。
+每次发布更新三处：这里加一节、`package.json` 提升版本、打标签推送——剩下的由 GitHub Actions 自动完成。
 
 该插件从桌面版自带的那个版本起步：当时的实例名是 `@local/dsh-skin`，版本号记作 `1.0.1`。
+
+## 1.0.3 — 2026-10-29
+
+**发布流程自动化**
+
+- 新增 GitHub Actions 工作流：推一个 `v*` 标签后自动校验版本一致、跑两套自测、打成源码包并生成 sha256，再用标签对应的 CHANGELOG 小节创建 GitHub Release。
+- 只用仓库自带的 `GITHUB_TOKEN`，不需要配置任何 secret；`-rc` / `-beta` 标签发布为预发布，不抢 `latest`，方便先验证附件。
+- 工作流支持手动触发（传入标签名重跑同一次发布）。
+
+**应用内更新更稳**
+
+- 「检查更新」现在优先使用 Release 附件里的源码包，并在安装前用附带的 `.sha256` 校验；没有附件时才退回标签 tarball。
 
 ## 1.0.2 — 2026-10-29
 

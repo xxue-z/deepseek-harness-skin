@@ -314,6 +314,20 @@ console.log('update check')
   check('release notes come from the release', newer.notes === 'notes' && newer.url.endsWith('/v1.0.3'))
   check('updates are never silent', newer.autoUpdate === false)
 
+  const withAsset = await withFetch(() =>
+    respond({
+      tag_name: 'v1.0.3',
+      html_url: 'https://github.com/x/y/releases/tag/v1.0.3',
+      assets: [
+        { name: 'deepseek-harness-skin-v1.0.3.tar.gz', size: 102400, browser_download_url: 'https://github.com/x/y/releases/download/v1.0.3/deepseek-harness-skin-v1.0.3.tar.gz' },
+        { name: 'deepseek-harness-skin-v1.0.3.tar.gz.sha256', browser_download_url: 'https://github.com/x/y/releases/download/v1.0.3/deepseek-harness-skin-v1.0.3.tar.gz.sha256' },
+      ],
+    }),
+  )
+  check('a release asset is offered for install', withAsset.asset?.name === 'deepseek-harness-skin-v1.0.3.tar.gz', JSON.stringify(withAsset.asset))
+  check('the checksum travels with it', withAsset.checksum?.name?.endsWith('.sha256') === true, JSON.stringify(withAsset.checksum))
+  check('a release without assets reports none', newer.asset === null && newer.checksum === null)
+
   const same = await withFetch(() => respond({ tag_name: 'v1.0.2' }))
   check('the installed release is up to date', same.updateAvailable === false && same.latest === '1.0.2')
 
