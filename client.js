@@ -94,8 +94,6 @@ window.__ModuleLoader__.load({
         'about.version': '当前版本',
         'about.repo': '项目地址',
         'about.changelog': '版本说明',
-        'about.notes': '检查更新',
-        'about.notesSource': '插件以源码形式装在本地，更新会替换整个插件目录并重新加载；也可以直接用 git 拉取新标签。',
         'about.check': '检查更新',
         'about.checking': '正在检查…',
         'about.updateAvailable': '有新版本 {version}',
@@ -231,8 +229,6 @@ window.__ModuleLoader__.load({
         'about.version': 'Version',
         'about.repo': 'Repository',
         'about.changelog': 'Release notes',
-        'about.notes': 'Updates',
-        'about.notesSource': 'The plugin is installed from source. Updating replaces the whole plugin directory and reloads it; pulling the new tag works too.',
         'about.check': 'Check for updates',
         'about.checking': 'Checking…',
         'about.updateAvailable': 'Version {version} is available',
@@ -1883,8 +1879,6 @@ window.__ModuleLoader__.load({
             h('span', { className: 'dsks-switch-label' }, t('about.changelog')),
             h('a', { className: 'dsks-link', href: `${info.url}/blob/master/CHANGELOG.md`, target: '_blank', rel: 'noreferrer noopener' }, 'CHANGELOG.md'),
           ),
-          h('h4', { className: 'dsks-about-head' }, t('about.notes')),
-          h('p', { className: 'dsks-hint' }, t('about.notesSource')),
           check !== null
             ? h(
                 'p',
