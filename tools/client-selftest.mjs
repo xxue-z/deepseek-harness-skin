@@ -370,6 +370,12 @@ check('injects the wallpaper stylesheet', Boolean(wallpaperTag))
 check('stylesheet blurs dialog backdrops', wallpaperTag?.textContent.includes('[role="dialog"]'))
 check('stylesheet paints body::before', wallpaperTag?.textContent.includes('body::before'))
 check('stylesheet uses the wallpaper url', wallpaperTag?.textContent.includes('/skin/assets/skin.test/wallpaper'))
+check(
+  'the veil takes the theme canvas colour',
+  wallpaperTag?.textContent.includes('linear-gradient(rgba(16, 20, 24, 0.7), rgba(16, 20, 24, 0.7))'),
+  String(wallpaperTag?.textContent).slice(0, 240),
+)
+check('the veil is never hard-coded white', !String(wallpaperTag?.textContent).includes('rgba(255, 255, 255'))
 check('stylesheet positions by focus', wallpaperTag?.textContent.includes('30% 60%'))
 check('stylesheet lifts #root above the layer', wallpaperTag?.textContent.includes('#root{position:relative;z-index:1;}'))
 const managerTag = styleTags.find((tag) => tag.getAttribute('data-plugin-css') === 'manager')

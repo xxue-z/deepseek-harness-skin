@@ -479,12 +479,26 @@ window.__ModuleLoader__.load({
     const GENERIC_FONTS = /^(ui-|system-ui|sans-serif|serif|monospace|inherit|-apple-system|blinkmacsystemfont|helvetica|arial|"helvetica neue"|"segoe ui"|"pingfang sc"|"microsoft yahei")/i
 
     /**
-     * Strength of the neutral veil drawn over the artwork.
+     * Colour of the readability veil drawn over the artwork.
+     *
+     * Codex paints its scrims as `rgb(var(--ds-bg-rgb) / alpha)`: the theme's own
+     * canvas colour, only made translucent. A fixed white veil washed dark
+     * wallpapers grey, and a fixed black one crushed bright ones — following the
+     * theme keeps text readable in either direction without guessing.
+     */
+    function veilColorFor(skin) {
+      const canvas = skin.colors?.background
+      const parsed = parseColor(canvas)
+      if (!parsed) return '255, 255, 255'
+      return `${Math.round(parsed.r)}, ${Math.round(parsed.g)}, ${Math.round(parsed.b)}`
+    }
+
+    /**
+     * Strength of the veil.
      *
      * The poster and the video share it so switching between them never changes
-     * the brightness of the background. It is never the theme's own colour and
-     * never black: a tinted veil washed photos out, a black one turned bright
-     * wallpapers muddy. A theme's `--ds-theme-image-dim` can strengthen it.
+     * the brightness of the background. A theme's `--ds-theme-image-dim` can
+     * strengthen it on top of the visibility slider.
      */
     function veilAlphaFor(skin, transparency) {
       const visibility = Number.isFinite(transparency) ? Math.max(0, Math.min(100, transparency)) : skin.transparency ?? 60
@@ -498,7 +512,8 @@ window.__ModuleLoader__.load({
       const rules = []
       if (skin.wallpaper?.url) {
         const alpha = veilAlphaFor(skin, transparency)
-        const scrim = alpha > 0 ? `linear-gradient(rgba(255, 255, 255, ${alpha}), rgba(255, 255, 255, ${alpha})), ` : ''
+        const color = veilColorFor(skin)
+        const scrim = alpha > 0 ? `linear-gradient(rgba(${color}, ${alpha}), rgba(${color}, ${alpha})), ` : ''
         const x = Math.round((skin.wallpaper.focusX ?? 0.5) * 100)
         const y = Math.round((skin.wallpaper.focusY ?? 0.5) * 100)
         rules.push(
@@ -740,7 +755,9 @@ window.__ModuleLoader__.load({
       function paintVeil(skin, transparency) {
         const veil = video.layer?.querySelector?.('.dsks-video-veil')
         if (!veil || !veil.style) return
-        veil.style.background = `rgba(255, 255, 255, ${veilAlphaFor(skin, transparency)})`
+        // Same colour as the poster veil, so a video plays on the same tone the
+        // still would have had.
+        veil.style.background = `rgba(${veilColorFor(skin)}, ${veilAlphaFor(skin, transparency)})`
       }
 
       function syncVideo(skin, transparency) {

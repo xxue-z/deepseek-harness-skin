@@ -133,6 +133,9 @@ skin_theme {"action":"transparency","id":"skin.crimson-mecha-nova","transparency
 - **默认可见度 100%**：只有 `theme.css` 自己写了 alpha（例如「星潮」的侧栏 0.7、「上杉绘梨衣」的
   0.32）才沿用作者值；没写的主题一律按当前默认（100%）渲染，所以改默认值会作用到所有这类主题，
   而不是把旧默认值固化在每个 `theme.json` 里。详情面板的「恢复默认」可以清掉单主题的覆写。
+- **可读性蒙版**：壁纸和视频上那层雾用的是**主题自己的 `colors.background`**，只调透明度，
+  与 Codex 的 `rgb(var(--ds-bg-rgb) / alpha)` 一致。浅色主题因此是白雾、深色主题是深灰雾，
+  而不是固定白色——固定白会把深色壁纸洗成灰，固定黑会把亮色壁纸压闷。
 - **持久化**：Harness 的主题偏好 schema 不接受第三方主题 id，所以插件自己存
   `<DSH_HOME>/skin/state.json`，启动时重新注册并恢复。
 
