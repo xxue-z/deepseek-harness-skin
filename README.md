@@ -200,30 +200,6 @@ node tools/client-selftest.mjs    # Web：主题注册、壁纸样式、透明�
 
 两个脚本都不需要网络、不需要安装依赖。
 
-## 发布
-
-发版只推一个标签，其余交给 [`.github/workflows/release.yml`](.github/workflows/release.yml)：
-
-```bash
-# 1. 改 package.json 的 version，并在 CHANGELOG.md 顶部加一节同名版本
-git commit -am "release: 1.0.6" && git tag -a v1.0.6 -m "1.0.6"
-git push origin master v1.0.6
-```
-
-工作流会：校验标签 / `package.json` / `CHANGELOG` 三处版本一致 → 跑两套自测 →
-按 `package.json` 的 `files` 打出安装包 `deepseek-harness-skin-vX.Y.Z.tar.gz` 并生成
-`.sha256` → 用标签对应的 CHANGELOG 小节建 GitHub Release 并上传附件。
-
-安装包里只有运行时文件（入口、`lib/`、`locale/`、patch、图标）和 README/CHANGELOG；
-`.github/`、`docs/`、`tools/` 不进包。
-
-它只用仓库自带的 `GITHUB_TOKEN`（`contents: write`），不需要配置任何 secret；
-标签带 `-rc` / `-beta` 时发布为预发布，不会抢 `latest`，可以先下载附件验证再转正式。
-工作流也可以在 Actions 页面手动触发（传入标签名重跑同一次发布）。
-
-设置页的「检查更新」读的就是这个 Release：有附件时优先下载附件并校验 sha256，
-没有附件时退回标签 tarball。插件目录会被整体替换，旧目录保留为带日期的备份。
-
 ## 已知边界
 
 - **视频壁纸的编码**：只接受 H.264（`avc1`）、8-bit、单视频轨、≤16 MB，分辨率上限
