@@ -11,14 +11,17 @@
 
 ## 安装
 
-这是一个源码即插件的 bundle（无构建步骤、无运行时依赖）：
+从 [Releases](https://github.com/xxue-z/deepseek-harness-skin/releases) 下载 `deepseek-harness-skin-vX.Y.Z.tar.gz`，
+解压到一个独立目录（例如 `D:\apps\dsh-skin`），然后在 Harness 会话里：
 
 ```bash
-# 在 Harness 会话里
-plugin_manager install_bundle  C:\path\to\deepseek-harness-skin
+plugin_manager install_bundle  D:\apps\dsh-skin
 ```
 
-安装后无需重启：Host 半通过 Loader 生效，Web 半随模块图下发。**如果设置页没有出现新条目，刷新一次页面**（已打开的页面不会重新执行旧模块）。
+包名（也是加载器解析的模块名）是 **`@local/dsh-skin`**；`@local/` 表示它装在本地目录、不在 npm 上。
+
+安装后需要**重启一次 DeepSeek Harness**：Host 半走 Loader 加载，Web 半随模块图下发；重启后刷新页面。
+直接克隆仓库开发时，把目录用 `link:` 挂进 profile 即可，同样是重启后生效。
 
 ## 使用
 
@@ -123,13 +126,16 @@ node tools/client-selftest.mjs    # Web：主题注册、壁纸样式、透明�
 
 ```bash
 # 1. 改 package.json 的 version，并在 CHANGELOG.md 顶部加一节同名版本
-git commit -am "release: 1.0.3" && git tag -a v1.0.3 -m "1.0.3"
-git push origin master v1.0.3
+git commit -am "release: 1.0.6" && git tag -a v1.0.6 -m "1.0.6"
+git push origin master v1.0.6
 ```
 
 工作流会：校验标签 / `package.json` / `CHANGELOG` 三处版本一致 → 跑两套自测 →
-打 `deepseek-harness-skin-v1.0.3.tar.gz`（源码包，含 `package/` 根目录）并生成
+按 `package.json` 的 `files` 打出安装包 `deepseek-harness-skin-vX.Y.Z.tar.gz` 并生成
 `.sha256` → 用标签对应的 CHANGELOG 小节建 GitHub Release 并上传附件。
+
+安装包里只有运行时文件（入口、`lib/`、`locale/`、patch、图标）和 README/CHANGELOG；
+`.github/`、`docs/`、`tools/` 不进包。
 
 它只用仓库自带的 `GITHUB_TOKEN`（`contents: write`），不需要配置任何 secret；
 标签带 `-rc` / `-beta` 时发布为预发布，不会抢 `latest`，可以先下载附件验证再转正式。

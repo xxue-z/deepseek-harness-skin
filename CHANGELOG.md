@@ -1,10 +1,20 @@
 # 更新日志
 
-版本号与 `package.json` 的 `version` 一致；同一个版本对应一个 git 标签（`v1.0.5`）和一次 GitHub Release。
+版本号与 `package.json` 的 `version` 一致；同一个版本对应一个 git 标签（`v1.0.6`）和一次 GitHub Release。
 每次发布更新三处：这里加一节、`package.json` 提升版本、打标签推送——剩下的由 GitHub Actions 自动完成。
 
-该插件从桌面版自带的那个版本起步：当时的实例名是 `@local/dsh-skin`，版本号记作 `1.0.1`；
-从 1.0.5 起包名统一为 `deepseek-harness-skin`。
+包名（也是加载器解析的模块名）是 `@local/dsh-skin`：`@local/` 说明它装在本地目录、不在 npm 上。
+1.0.5 曾短暂改成 `deepseek-harness-skin`，1.0.6 改回来了。
+
+该插件从桌面版自带的那个版本起步，版本号记作 `1.0.1`。
+
+## 1.0.6 — 2026-10-29
+
+**包名回到 `@local/dsh-skin`**
+
+- 1.0.5 为了让名字「看起来正式」把 `package.json` 的 `name` 改成了 `deepseek-harness-skin`，但这个名字是加载器实际解析的模块名，改名本身没有带来任何收益，反而要求所有引用同步改动。1.0.6 统一改回 `@local/dsh-skin`。
+- 同步过的位置：`package.json`（`name` 与 `pkg.name`）、`cordis.patch.yml`、`index.js` 的 `export const name`、`client.js` 注册的模块 id、客户端模块图诊断里的包名。行 id 仍是 `dsh-skin`。
+- 从 1.0.5 安装的用户需要重新安装一次（包名变了，`node_modules` 里的目录名随之变化）。
 
 ## 1.0.5 — 2026-10-29
 

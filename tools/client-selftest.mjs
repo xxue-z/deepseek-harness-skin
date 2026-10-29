@@ -361,7 +361,7 @@ check('dialogs stay nearly solid', String(darkReg?.tokens?.['--dsw-alias-bg-laye
 check('cards stay readable', String(darkReg?.tokens?.['--dsw-alias-bg-layer-1']).endsWith('0.86)'), String(darkReg?.tokens?.['--dsw-alias-bg-layer-1']))
 check('text token is the theme text colour', darkReg?.tokens?.['--dsw-alias-label-primary'] === '#f2f6fa')
 check('activates the active skin', themeCalls.setTheme.includes('skin.test'))
-check('installs an alpha override layer', themeCalls.overrideTokens.length === 1 && themeCalls.overrideTokens[0].source === 'deepseek-harness-skin')
+check('installs an alpha override layer', themeCalls.overrideTokens.length === 1 && themeCalls.overrideTokens[0].source === '@local/dsh-skin')
 const override = themeCalls.overrideTokens[0]?.tokens?.['--dsw-alias-bg-base']
 check('override carries light and dark values', typeof override?.light === 'string' && typeof override?.dark === 'string')
 

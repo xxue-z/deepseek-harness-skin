@@ -62,6 +62,13 @@ jobs:
           node tools/selftest.mjs
           node tools/client-selftest.mjs
 
+      # The package name is the module name the loader resolves through
+      # node_modules. A half-renamed tree (1.0.5 shipped one) loads nothing,
+      # so every place that names the plugin is checked together.
+      - name: 校验包名一致
+        run: |
+          node tools/check-package-name.mjs
+
       - name: 打包插件
         run: |
           # The archive is the install bundle, not a copy of the repository: only

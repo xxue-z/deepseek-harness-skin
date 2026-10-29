@@ -1,6 +1,6 @@
 {
-  "name": "deepseek-harness-skin",
-  "version": "1.0.5",
+  "name": "@local/dsh-skin",
+  "version": "1.0.6",
   "private": true,
   "type": "module",
   "description": "Theme skin manager for DeepSeek Harness: Codex-Skins import, wallpaper skins, and an AI theme designer.",
@@ -10,7 +10,7 @@
   },
   "homepage": "https://github.com/xxue-z/deepseek-harness-skin",
   "pkg": {
-    "name": "deepseek-harness-skin"
+    "name": "@local/dsh-skin"
   },
   "exports": {
     ".": "./index.js",
