@@ -112,6 +112,7 @@ window.__ModuleLoader__.load({
           '下载更新包失败：浏览器取不到 GitHub 上的 release 文件（常见原因：网络不通、需要代理，或浏览器拦截了跨域下载）。可以在浏览器里打开“打开发布页”，手动下载附件后重新安装。',
         'about.manualRestart': '文件已替换，请重启一次应用后生效（这是手动安装的目录，插件无法自更新）。',
         'about.updatedRestart': '文件已替换为 {to}，但正在运行的是 {from}：重启一次应用后版本号才会更新。',
+        'about.pendingRestart': '{version} 已安装，重启应用后生效（当前运行的仍是旧版本）。',
         'about.retry': '可以再点一次「下载并更新」重试',
         'design.base': '以当前主题为基底微调',
         'design.working': '正在设计…',
@@ -298,6 +299,7 @@ window.__ModuleLoader__.load({
           'Could not download the release asset: the browser could not reach GitHub (network/proxy, or the download was blocked). Open the release page and install the attached bundle by hand instead.',
         'about.manualRestart': 'Files were replaced. Restart the app once to load them — this install is a directory the plugin cannot restart by itself.',
         'about.updatedRestart': 'Files were replaced with {to}, but {from} is still running: restart the app once and the version will update.',
+        'about.pendingRestart': '{version} is installed — restart the app to use it (the old build is still running).',
         'about.retry': 'click “Download and update” again to retry',
         'design.base': 'Restyle the selected skin',
         'design.working': 'Designing…',
@@ -658,6 +660,7 @@ window.__ModuleLoader__.load({
     const api = {
       version: () => rootRequest('version'),
       checkUpdate: () => rootRequest('update-check'),
+      updateState: () => rootRequest('update/state'),
       /**
        * Ask the Host for the release bytes.
        *
@@ -2715,6 +2718,9 @@ let videoSettings = { autoplay: true, muted: true }
       const [manual, setManual] = useState(null)
       const [progress, setProgress] = useState({ percent: 0, loaded: 0, total: null })
       if (check === null && release !== null && release !== undefined) setCheck(release)
+      // Something newer is already on disk but the process still runs the old
+      // build: downloading again would only replace the same files.
+      const pendingRestart = check?.pendingRestart === true || check?.alreadyInstalled === true
       const run = async () => {
         setChecking(true)
         setError(null)
@@ -2774,6 +2780,25 @@ let videoSettings = { autoplay: true, muted: true }
                 ? `${t('about.updatedRestart', { from: before, to: after })}`
                 : t('about.manualRestart')),
           )
+          // Refresh the sheet's idea of the install so the download button
+          // disappears at once: the files on disk are now the new release.
+          try {
+            const state = await api.updateState()
+            setCheck((previous) =>
+              previous === null
+                ? previous
+                : {
+                    ...previous,
+                    installed: state.diskVersion,
+                    runningVersion: state.runningVersion,
+                    pendingRestart: state.pendingRestart === true,
+                    updateAvailable: previous.updateAvailable && state.pendingRestart !== true,
+                    alreadyInstalled: state.pendingRestart === true,
+                  },
+            )
+          } catch {
+            /* the message above already says a restart is needed */
+          }
         } catch (failure) {
           setPhase(null)
           const message = failure instanceof Error ? failure.message : String(failure)
@@ -2813,12 +2838,14 @@ let videoSettings = { autoplay: true, muted: true }
           check !== null
             ? h(
                 'p',
-                { className: check.updateAvailable ? 'dsks-about-update' : 'dsks-hint' },
-                check.updateAvailable
-                  ? t('about.updateAvailable', { version: latest ?? check.tag ?? '' })
-                  : check.latest
-                    ? t('about.upToDate', { version: check.latest })
-                    : t('about.noRelease'),
+                { className: pendingRestart ? 'dsks-hint dsks-warn' : check.updateAvailable ? 'dsks-about-update' : 'dsks-hint' },
+                pendingRestart
+                  ? t('about.pendingRestart', { version: check.installed ?? '' })
+                  : check.updateAvailable
+                    ? t('about.updateAvailable', { version: latest ?? check.tag ?? '' })
+                    : check.latest
+                      ? t('about.upToDate', { version: check.latest })
+                      : t('about.noRelease'),
               )
             : null,
           // A manual install keeps the sheet open, and the action row has to
@@ -2858,7 +2885,11 @@ let videoSettings = { autoplay: true, muted: true }
           'div',
           { className: 'dsks-about-actions' },
           h(Button, { onClick: run, busy: checking }, checking ? t('about.checking') : t('about.check')),
-          check?.updateAvailable && phase !== 'downloading' && phase !== 'installing'
+          // The button can only act while nothing newer is already on disk.
+          // Judging that by the running version alone is what let it keep
+          // offering — and re-downloading — a release that was installed
+          // already, just not restarted into.
+          check?.updateAvailable && !pendingRestart && phase !== 'downloading' && phase !== 'installing'
             ? h(Button, { variant: 'primary', icon: 'download', onClick: install }, t('about.install'))
             : null,
           check?.url ? h(Button, { onClick: () => window.open(check.url, '_blank', 'noopener') }, t('about.openRelease')) : null,

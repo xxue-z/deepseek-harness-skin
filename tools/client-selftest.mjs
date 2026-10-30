@@ -871,6 +871,14 @@ console.log('version badge and update sheet')
     check('a newer release offers the download', newer.includes('about.install'))
     const current = renderAbout({ release: { ...releaseInfo, updateAvailable: false, latest: '1.0.2', tag: 'v1.0.2' } })
     check('the same version reports up to date', current.includes('about.upToDate') && !current.includes('about.install'))
+
+    // The release sits on disk but the process still runs the old build: the
+    // button must go away, or it re-downloads the same archive on every click.
+    const pending = renderAbout({
+      release: { ...releaseInfo, updateAvailable: false, alreadyInstalled: true, pendingRestart: true, installed: '1.0.3', runningVersion: '1.0.2', latest: '1.0.3' },
+    })
+    check('an installed-on-disk release hides the download button', !pending.includes('about.install'), pending.slice(0, 400))
+    check('and asks for a restart instead', pending.includes('about.pendingRestart'), pending.slice(0, 400))
   }
 
   /* ------------------------------------------- release download through Host */

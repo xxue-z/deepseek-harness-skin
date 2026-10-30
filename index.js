@@ -286,6 +286,23 @@ export function apply(ctx, config) {
     }
   }
 
+  /**
+   * Whether the installed tree is ahead of the running build.
+   *
+   * The version shown in Settings is the one read at process start, while the
+   * files on disk are whatever the last update left there. The gap between the
+   * two is what lets the page offer "download and update" for a release that is
+   * already installed — and re-run the whole download on every click.
+   */
+  service.updateState = () => {
+    const diskVersion = readVersion(join(PACKAGE_DIR, 'package.json'))
+    return {
+      runningVersion: meta.version,
+      diskVersion,
+      pendingRestart: diskVersion !== '0.0.0' && diskVersion !== meta.version,
+    }
+  }
+
   // Bundled themes: copied into the library once, so a fresh install opens on
   // two ready-made skins instead of an empty list. Deleting one stays deleted.
   try {

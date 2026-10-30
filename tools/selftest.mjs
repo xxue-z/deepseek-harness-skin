@@ -492,6 +492,67 @@ console.log('update check')
   check('an unreachable GitHub is not an error the page throws on', offline.error === 'offline' && offline.current === '1.0.2')
 }
 
+console.log('update state against disk')
+{
+  // The version in Settings is read once, at process start. The files can be
+  // newer than that, and the page has to be able to tell — otherwise it keeps
+  // offering "download and update" for a release that is already installed.
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-skin-updatestate-'))
+  const store = new SkinStore(join(dir, 'skin'))
+  store.ensure()
+  const makeService = (running, disk) => {
+    const service = new SkinService({ store, config: { codexDirs: [] }, getLlm: () => undefined, getSelection: () => undefined })
+    let onDisk = disk
+    service.updateState = () => ({
+      runningVersion: running,
+      diskVersion: onDisk,
+      pendingRestart: onDisk !== '0.0.0' && onDisk !== running,
+    })
+    service.updateCheck = async () => ({ current: running, latest: '1.0.14', updateAvailable: compareVersions('1.0.14', running) > 0, error: null })
+    return { service, setLatest: (latest) => { service.updateCheck = async () => ({ current: running, latest, updateAvailable: compareVersions(latest, running) > 0, error: null }) } }
+  }
+
+  const call = async (entry) => {
+    const server = createServer(createSkinHandler(entry.service, { store, log: () => {} }))
+    await new Promise((done) => server.listen(0, '127.0.0.1', done))
+    const base = `http://127.0.0.1:${server.address().port}`
+    try {
+      const checkResult = await fetch(`${base}/skin/update-check`).then((r) => r.json())
+      const stateResult = await fetch(`${base}/skin/update/state`).then((r) => r.json())
+      return { check: checkResult, state: stateResult }
+    } finally {
+      server.close()
+    }
+  }
+
+  // Running 1.0.13, disk 1.0.13: nothing to do.
+  {
+    const { check: result, state } = await call(makeService('1.0.13', '1.0.13'))
+    check('a newer release is still offered when the disk is old', result.updateAvailable === true, JSON.stringify({ updateAvailable: result.updateAvailable, latest: result.latest }))
+    check('an in-sync install is not flagged as installed', result.alreadyInstalled === false, JSON.stringify(result))
+    check('an in-sync install is not pending a restart', state.pendingRestart === false, JSON.stringify(state))
+  }
+
+  // Running 1.0.13, disk 1.0.14: the release is already installed, so the page
+  // must stop offering it and ask for a restart instead.
+  {
+    const { check: result, state } = await call(makeService('1.0.13', '1.0.14'))
+    check('an installed-but-not-running release is flagged', result.alreadyInstalled === true, JSON.stringify(result))
+    check('an installed release is not offered again', result.updateAvailable === false, JSON.stringify(result))
+    check('the running and disk versions are both reported', result.running === '1.0.13' && result.installed === '1.0.14', JSON.stringify({ running: result.running, installed: result.installed }))
+    check('the state says a restart is pending', state.pendingRestart === true, JSON.stringify(state))
+  }
+
+  // Running 1.0.13, disk 1.0.14, and a 1.0.15 appears: still an update to offer.
+  {
+    const entry = makeService('1.0.13', '1.0.14')
+    entry.setLatest('1.0.15')
+    const { check: result } = await call(entry)
+    check('a release newer than the disk is offered again', result.updateAvailable === true && result.alreadyInstalled === false, JSON.stringify({ updateAvailable: result.updateAvailable, alreadyInstalled: result.alreadyInstalled }))
+  }
+  rmSync(dir, { recursive: true, force: true })
+}
+
 console.log('update download proxy')
 {
   // The page cannot fetch a release itself: neither GitHub hop sends a CORS
