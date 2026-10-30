@@ -191,6 +191,8 @@ window.__ModuleLoader__.load({
         'playlist.pip': '小窗口播放（画中画）',
         'playlist.pipHint': '把背景视频放进系统级的小窗口；切换或关闭视频列表时自动退出画中画。',
         'playlist.pipUnsupported': '当前浏览器不支持画中画，此项不可用。',
+        'playlist.pipFailed': '画中画打开失败：{message}（可先点一下视频再试）',
+        'playlist.pipNeedsPlaylist': '视频列表开关关闭时没有可弹出的背景视频。',
         'playlist.pipUnsupportedShort': '当前浏览器不支持画中画',
         'playlist.history': '历史播放文件夹',
         'playlist.historyHint': '双击直接使用该文件夹。',
@@ -378,6 +380,8 @@ window.__ModuleLoader__.load({
         'playlist.pip': 'Picture-in-picture',
         'playlist.pipHint': 'Puts the background video in a system window; leaving the video list exits it.',
         'playlist.pipUnsupported': 'This browser does not support picture-in-picture.',
+        'playlist.pipFailed': 'Could not open picture-in-picture: {message} (try clicking the video first)',
+        'playlist.pipNeedsPlaylist': 'Turn the video list on first — there is no background video to pop out.',
         'playlist.pipUnsupportedShort': 'Picture-in-picture is unsupported here',
         'playlist.history': 'Recent folders',
         'playlist.historyHint': 'Double-click a folder to use it again.',
@@ -836,6 +840,8 @@ let videoSettings = { autoplay: true, muted: true }
       }
       let trackTimer = null
       let lastTracked = ''
+      /** Why the browser refused the floating window, for the panel to show. */
+      let pipError = null
 
       /** The skin currently applied, or null when no skin is in use. */
       function currentSkin() {
@@ -1340,21 +1346,41 @@ let videoSettings = { autoplay: true, muted: true }
         }
       }
 
-      function applyPictureInPicturePreference() {
-        if (playlist.settings.pictureInPicture !== true) exitPictureInPicture()
-        else if (video.element && !video.element.paused) enterPictureInPicture()
+      function applyPictureInPicturePreference({ userGesture = false } = {}) {
+        if (playlist.settings.pictureInPicture !== true) {
+          exitPictureInPicture()
+          return
+        }
+        // Deliberately not limited to a *playing* element: `requestPictureInPicture`
+        // is allowed on a paused video (the browser starts it in the floating
+        // window), and requiring playback here is what made the switch do
+        // nothing whenever the background happened to be paused.
+        if (video.element) enterPictureInPicture({ userGesture })
       }
 
-      function enterPictureInPicture() {
+      function enterPictureInPicture({ userGesture = false } = {}) {
         if (playlist.settings.pictureInPicture !== true) return
         const element = video.element
         if (!element || typeof element.requestPictureInPicture !== 'function') return
         try {
           if (document.pictureInPictureElement === element) return
           const result = element.requestPictureInPicture()
-          // No user gesture yet: the next play() tries again.
-          if (result && typeof result.catch === 'function') result.catch(() => {})
-        } catch {
+          // A rejection (no transient activation yet, or a platform that refuses)
+          // is reported to the panel instead of vanishing silently; the next
+          // play() or click tries again.
+          if (result && typeof result.catch === 'function') {
+            result.catch((error) => {
+              if (userGesture) {
+                pipError = error instanceof Error ? error.message : String(error ?? '画中画被浏览器拒绝')
+                emit()
+              }
+            })
+          }
+        } catch (error) {
+          if (userGesture) {
+            pipError = error instanceof Error ? error.message : String(error)
+            emit()
+          }
           /* not allowed on this platform or at this moment */
         }
       }
@@ -1367,13 +1393,15 @@ let videoSettings = { autoplay: true, muted: true }
         }
       }
 
-      async function updatePlaylistSettings(patch) {
+      async function updatePlaylistSettings(patch, options = {}) {
         const input = patch && typeof patch === 'object' ? patch : {}
         const before = playlist.settings.folder
         const next = { ...playlist.settings, ...input }
         playlist.settings = next
+        // Reported to the panel when the browser refuses the floating window.
+        if (typeof input.pictureInPicture === 'boolean') pipError = null
         if (typeof input.speed === 'number') applySpeed(next.speed)
-        if (typeof input.pictureInPicture === 'boolean') applyPictureInPicturePreference()
+        if (typeof input.pictureInPicture === 'boolean') applyPictureInPicturePreference({ userGesture: options.userGesture === true })
         if (snapshot?.playlist) snapshot = { ...snapshot, playlist: { ...snapshot.playlist, ...input, enabled: playlist.enabled } }
         emit()
         try {
@@ -1478,6 +1506,10 @@ let videoSettings = { autoplay: true, muted: true }
           second: playlist.resumeSecond,
           pictureInPictureAvailable: isPictureInPictureAvailable(),
           pictureInPicture: playlist.settings.pictureInPicture === true,
+          pictureInPictureError: pipError,
+          pictureInPictureActive: Boolean(
+            typeof document !== 'undefined' && video.element && document.pictureInPictureElement === video.element,
+          ),
           playing: Boolean(video.element) && !video.element.paused,
           source: video.source?.kind ?? null,
         }
@@ -3086,7 +3118,7 @@ let videoSettings = { autoplay: true, muted: true }
       const chooseFolder = () => run('folder', () => runtime.pickPlaylistFolder())
       const openFolder = () => run('open', () => runtime.openPlaylistFolder(playlist.folder))
       const changeSpeed = (speed) => run('speed', () => runtime.updatePlaylistSettings({ speed }))
-      const changePip = (value) => run('pip', () => runtime.updatePlaylistSettings({ pictureInPicture: value }))
+      const changePip = (value) => run('pip', () => runtime.updatePlaylistSettings({ pictureInPicture: value }, { userGesture: true }))
       const useHistory = (path) => run(`history:${path}`, () => runtime.chooseHistory(path))
       const goRelative = (step) => {
         if (step > 0) runtime.nextPlaylist?.()
@@ -3178,6 +3210,9 @@ let videoSettings = { autoplay: true, muted: true }
             hint: pipAvailable ? t('playlist.pipHint') : t('playlist.pipUnsupported'),
             onChange: (value) => changePip(value),
           }),
+          // A refused request must not look like a dead switch.
+          playlist?.pictureInPictureError ? h('p', { className: 'dsks-error' }, t('playlist.pipFailed', { message: playlist.pictureInPictureError })) : null,
+          pipAvailable && playlist?.pictureInPicture && !playlist?.enabled ? h('p', { className: 'dsks-hint' }, t('playlist.pipNeedsPlaylist')) : null,
           h(
             'div',
             { className: 'dsks-playlist-history' },

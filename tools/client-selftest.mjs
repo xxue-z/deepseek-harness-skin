@@ -32,6 +32,11 @@ function matchesSelector(element, selector) {
   return false
 }
 
+/* ------------------------------------------------- picture-in-picture state */
+
+let pictureInPictureEnabled = true
+const pipRequests = []
+
 function createElement(tagName) {
   const listeners = new Map()
   const element = {
@@ -95,6 +100,17 @@ function createElement(tagName) {
     pause() {
       this.paused = true
     },
+    // Picture-in-picture, as Chromium models it: requesting it while the element
+    // is paused is allowed (the spec auto-plays), and the promises settle like
+    // the real ones so a swallowed rejection is exercised too.
+    requestPictureInPicture() {
+      pipRequests.push(this)
+      if (!pictureInPictureEnabled) return Promise.reject(new DOMException('disabled', 'NotSupportedError'))
+      this.ownerDocument.pictureInPictureElement = this
+      this.paused = false
+      this.emit('play')
+      return Promise.resolve({})
+    },
     load() {},
     get textContent() {
       return this._text
@@ -122,6 +138,24 @@ globalThis.document = {
   removeEventListener() {},
   documentElement: { style: {} },
   visibilityState: 'visible',
+  // Picture-in-picture surface, mirroring the Chromium DOM contract.
+  get pictureInPictureEnabled() {
+    return pictureInPictureEnabled
+  },
+  pictureInPictureElement: null,
+  exitPictureInPicture() {
+    this.pictureInPictureElement = null
+    return Promise.resolve()
+  },
+  exitCalls: 0,
+}
+// Every element knows its document, so a request can register itself the way
+// the browser does and the client's own reads agree with it.
+const originalCreateElement = createElement
+globalThis.document.createElement = (tagName) => {
+  const element = originalCreateElement(tagName)
+  element.ownerDocument = globalThis.document
+  return element
 }
 globalThis.window = globalThis
 globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} })
@@ -628,6 +662,52 @@ console.log('folder playlist')
   }
   check('picture-in-picture availability is probed', typeof runtime.isPictureInPictureAvailable() === 'boolean')
   check('history is listed for double-click reuse', panelText.includes('playlistDir') || panelText.includes('C:\\\\clips\\\\wallpaper'), panelText.slice(0, 400))
+}
+
+console.log('picture-in-picture')
+{
+  const runtime = slotRegistrations[0].component({}).props.runtime
+  await runtime.chooseFolder(playlistDir)
+  await runtime.setPlaylistEnabled(true)
+  await flush()
+
+  // The switch was only filling `playlist.settings`; it never asked the browser
+  // for a picture-in-picture window, so nothing appeared. Turning it on has to
+  // request one itself.
+  pipRequests.length = 0
+  document.pictureInPictureElement = null
+  await runtime.updatePlaylistSettings({ pictureInPicture: true })
+  check('turning the switch on requests picture-in-picture', pipRequests.length > 0, String(pipRequests.length))
+  check('a picture-in-picture window is now open', document.pictureInPictureElement !== null)
+
+  // A paused background must still be able to pop out: the switch is the user
+  // gesture, and the browser starts playing in the floating window.
+  await runtime.updatePlaylistSettings({ pictureInPicture: false })
+  check('turning it off closes the window', document.pictureInPictureElement === null)
+  runtime.toggleVideo()
+  check('the clip is paused before the request', runtime.getPlaylistState().playing === false)
+  pipRequests.length = 0
+  await runtime.updatePlaylistSettings({ pictureInPicture: true })
+  check('a paused clip still pops out', pipRequests.length > 0 && document.pictureInPictureElement !== null)
+
+  // Browser without support: the switch reports unavailable and never throws.
+  await runtime.updatePlaylistSettings({ pictureInPicture: false })
+  pictureInPictureEnabled = false
+  check('availability follows the browser', runtime.isPictureInPictureAvailable() === false)
+  await runtime.updatePlaylistSettings({ pictureInPicture: true })
+  check('an unsupported browser leaves no window', document.pictureInPictureElement === null)
+  check('the stored preference survives the failure', runtime.getPlaylistState().pictureInPicture === true)
+  pictureInPictureEnabled = true
+
+  // Leaving the playlist must not strand a floating window.
+  document.pictureInPictureElement = pipRequests[0] ?? null
+  await runtime.setPlaylistEnabled(false)
+  await flush()
+  check('switching the playlist off closes picture-in-picture', document.pictureInPictureElement === null)
+  await runtime.updatePlaylistSettings({ pictureInPicture: false })
+  activeId = skin.id
+  await runtime.load()
+  await flush()
 }
 
 console.log('transparency preview')
