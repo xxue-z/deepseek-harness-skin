@@ -528,6 +528,10 @@ console.log('update state against disk')
   // Running 1.0.13, disk 1.0.13: nothing to do.
   {
     const { check: result, state } = await call(makeService('1.0.13', '1.0.13'))
+    // The page rejects a response without `ok` as "接口返回异常（HTTP 200）",
+    // however good the rest of it is.
+    check('the update check keeps its ok envelope', result.ok === true, JSON.stringify(Object.keys(result)))
+    check('the update state keeps its ok envelope', state.ok === true, JSON.stringify(Object.keys(state)))
     check('a newer release is still offered when the disk is old', result.updateAvailable === true, JSON.stringify({ updateAvailable: result.updateAvailable, latest: result.latest }))
     check('an in-sync install is not flagged as installed', result.alreadyInstalled === false, JSON.stringify(result))
     check('an in-sync install is not pending a restart', state.pendingRestart === false, JSON.stringify(state))
