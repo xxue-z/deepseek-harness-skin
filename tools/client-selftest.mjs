@@ -419,6 +419,9 @@ new Function('window', 'document', 'fetch', 'React', source)(globalThis, globalT
 
 check('factory returns inject/apply', typeof exportsModule?.apply === 'function' && Array.isArray(exportsModule.inject))
 
+/** One Chinese label, read from the module's own dictionary. */
+const strings = (key) => exportsModule.__strings?.zh?.[key]
+
 /* ------------------------------------------------------------------- ctx */
 
 const themeCalls = { register: [], setTheme: [], overrideTokens: [], dispose: 0 }
@@ -562,7 +565,10 @@ console.log('dynamic background controls')
     const text = JSON.stringify(dialog)
     check('dialog exposes autoplay and mute', text.includes('"label":"video.autoplay"') && text.includes('"label":"video.muted"'))
     check('dialog shows the play/pause shortcut', text.includes('video.shortcut') && text.includes('Ctrl'), text.slice(0, 200))
-    check('dialog shows the current state', text.includes('video.state'))
+    check('dialog no longer shows a "current theme" row', !text.includes('"video.state"'), text.slice(0, 200))
+    // The dialog mounts the playlist panel, which owns the inject switch and its
+    // inline shortcut (asserted in the panel section below).
+    check('the dialog mounts the playlist panel', text.includes('"playlist"'))
   }
 }
 
@@ -690,6 +696,12 @@ console.log('folder playlist')
   }
   check('picture-in-picture availability is probed', typeof runtime.isPictureInPictureAvailable() === 'boolean')
   check('history is listed for double-click reuse', panelText.includes('playlistDir') || panelText.includes('C:\\\\clips\\\\wallpaper'), panelText.slice(0, 400))
+  // The switch carries its own keycaps on the title line, so there is no
+  // separate "video list shortcut" row any more.
+  check('the inject switch shows its shortcut inline', panelText.includes('"playlist.enable"') && panelText.includes('"Alt"') && panelText.includes('"L"'), panelText.slice(0, 300))
+  check('the separate shortcut row is gone', !panelText.includes('"playlist.shortcut"'), panelText.slice(0, 300))
+  check('the switch title is not a call to action', strings('playlist.enable') === '注入视频列表', String(strings('playlist.enable')))
+  check('the folder row is named 视频目录', strings('playlist.folder') === '视频目录', String(strings('playlist.folder')))
 }
 
 console.log('picture-in-picture')

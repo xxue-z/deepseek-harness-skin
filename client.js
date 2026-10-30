@@ -164,13 +164,6 @@ window.__ModuleLoader__.load({
         'video.shortcutHint': '任意界面按一下就切换；也可以在「设置 → 快捷键」里改键位。',
         'video.shortcutFallback': '当前仅窗口聚焦时生效。',
         'video.shortcutUnbound': '未绑定',
-        'video.state': '当前主题',
-        'video.statePlaying': '动态壁纸播放中',
-        'video.statePaused': '已暂停（显示当前帧）',
-        'video.stateIdle': '未开始播放',
-        'video.stateNone': '这个主题没有动态背景',
-        'video.play': '播放',
-        'video.pause': '暂停',
         'video.meta': '{w}×{h} · {s} 秒 · {mb} MB',
         'video.missingHint': '原主题带 MP4，可点「补全动态背景」',
         'action.attachVideo': '补全动态背景',
@@ -178,11 +171,11 @@ window.__ModuleLoader__.load({
         /* advanced settings: folder playlist */
         'playlist.advanced': '高级设置',
         'playlist.advancedHint': '视频列表：按文件夹顺序播放一组视频，覆盖当前主题自带的动态背景。',
-        'playlist.enable': '启动注入视频列表',
+        'playlist.enable': '注入视频列表',
         'playlist.enableHint': '启用后向当前主题注入视频标签（静态主题也一样）；关闭即移除，恢复主题原样。每次启动客户端都会自动关闭，需要时用快捷键或在设置里再打开。',
         'playlist.shortcut': '视频列表开关',
         'playlist.shortcutHint': '任意界面按一下即可开关；也可以在「设置 → 快捷键」里改键位。',
-        'playlist.folder': '视频列表文件夹',
+        'playlist.folder': '视频目录',
         'playlist.folderHint': '按文件夹里的顺序循环播放；新增或删除文件会自动生效。',
         'playlist.folderEmpty': '还没有选择文件夹',
         'playlist.choose': '选择…',
@@ -353,13 +346,6 @@ window.__ModuleLoader__.load({
         'video.shortcutHint': 'Press it from anywhere; you can rebind it in Settings → Shortcuts.',
         'video.shortcutFallback': 'Currently only while the window has focus.',
         'video.shortcutUnbound': 'Unbound',
-        'video.state': 'Current theme',
-        'video.statePlaying': 'Background video playing',
-        'video.statePaused': 'Paused on the current frame',
-        'video.stateIdle': 'Not started',
-        'video.stateNone': 'This theme has no background video',
-        'video.play': 'Play',
-        'video.pause': 'Pause',
         'video.meta': '{w}×{h} · {s}s · {mb} MB',
         'video.missingHint': 'The pack ships an MP4 — use "Attach video"',
         'action.attachVideo': 'Attach video',
@@ -367,11 +353,11 @@ window.__ModuleLoader__.load({
         /* advanced settings: folder playlist */
         'playlist.advanced': 'Advanced settings',
         'playlist.advancedHint': 'Video list: play a folder in order, replacing the theme’s own background video.',
-        'playlist.enable': 'Inject the video list on start',
+        'playlist.enable': 'Inject the video list',
         'playlist.enableHint': 'Adds a video to the current theme — static themes too — and removes it again when switched off. It always starts switched off after a client restart; use the shortcut or this switch to turn it back on.',
         'playlist.shortcut': 'Video list shortcut',
         'playlist.shortcutHint': 'Press it from anywhere; you can rebind it in Settings → Shortcuts.',
-        'playlist.folder': 'Video folder',
+        'playlist.folder': 'Video directory',
         'playlist.folderHint': 'Plays in the folder’s own order and picks up added or removed files.',
         'playlist.folderEmpty': 'No folder chosen yet',
         'playlist.choose': 'Choose…',
@@ -3000,14 +2986,15 @@ let videoSettings = { autoplay: true, muted: true }
       )
     }
 
-    function Switch({ id, checked, label, hint, disabled = false, onChange }) {
+    function Switch({ id, checked, label, hint, disabled = false, extra, onChange }) {
       return h(
         'label',
         { className: 'dsks-switch', htmlFor: id, 'data-disabled': disabled ? '' : undefined },
         h(
           'span',
           { className: 'dsks-switch-text' },
-          h('span', { className: 'dsks-switch-label' }, label),
+          // `extra` rides on the title line (e.g. the shortcut keycaps).
+          h('span', { className: 'dsks-switch-line' }, h('span', { className: 'dsks-switch-label' }, label), extra ?? null),
           hint ? h('span', { className: 'dsks-switch-hint' }, hint) : null,
         ),
         h('input', {
@@ -3042,38 +3029,13 @@ let videoSettings = { autoplay: true, muted: true }
           }),
         [runtime],
       )
-      const skin = runtime.getActiveSkin()
-      const playing = runtime.isVideoPlaying()
       const update = (patch) => {
         setSettings((current) => ({ ...current, ...patch }))
         void runtime.updateVideoSettings(patch)
       }
-      const toggle = () => {
-        runtime.toggleVideo()
-        setRevision((value) => value + 1)
-      }
-      // The playlist, when on, is what is actually on screen; the theme's own
-      // MP4 then sits idle, so the state row has to describe the clip instead.
+      // Only the playlist panel needs to know what is on screen now: with the
+      // "current theme" row gone, everything else here is theme-independent.
       const playlist = runtime.getPlaylistState?.() ?? null
-      const fromPlaylist = Boolean(playlist?.enabled && playlist?.source === 'playlist')
-      const meta = skin?.video
-        ? t('video.meta', {
-            w: skin.video.width,
-            h: skin.video.height,
-            s: Math.round((skin.video.durationMs ?? 0) / 100) / 10,
-            mb: Math.round(((skin.video.bytes ?? 0) / 1024 / 1024) * 10) / 10,
-          })
-        : null
-      const hasPlayback = Boolean(skin?.video) || fromPlaylist
-      const state = fromPlaylist
-        ? `${playing ? t('video.statePlaying') : t('video.statePaused')} · ${t('playlist.positionOf', { i: playlist.index + 1, n: playlist.count, name: playlist.name ?? '' })}`
-        : !skin?.video
-          ? t('video.stateNone')
-          : playing
-            ? t('video.statePlaying')
-            : runtime.isVideoStarted?.()
-              ? t('video.statePaused')
-              : t('video.stateIdle')
       return h(
         Dialog,
         {
@@ -3115,17 +3077,9 @@ let videoSettings = { autoplay: true, muted: true }
           ),
         ),
         runtime.isShortcutRegistered() ? null : h('p', { className: 'dsks-hint' }, t('video.shortcutFallback')),
-        h(
-          'div',
-          { className: 'dsks-video-state' },
-          h(
-            'div',
-            { className: 'dsks-video-state-text' },
-            h('span', { className: 'dsks-switch-label' }, t('video.state')),
-            h('span', { className: 'dsks-switch-hint' }, !fromPlaylist && meta ? `${state} · ${meta}` : state),
-          ),
-          hasPlayback ? h(Button, { icon: playing ? 'pause' : 'play', onClick: toggle }, playing ? t('video.pause') : t('video.play')) : null,
-        ),
+        // The "current theme" row is deliberately gone: the playlist panel below
+        // already reports what is playing, and this row only ever said "this
+        // theme has no background video", which reads like a failure.
         h(PlaylistPanel, { t, runtime, playlist, playlistKeys, onChanged: () => setRevision((value) => value + 1) }),
       )
     }
@@ -3195,30 +3149,27 @@ let videoSettings = { autoplay: true, muted: true }
           'div',
           { className: 'dsks-form dsks-playlist-body' },
           h('p', { className: 'dsks-hint' }, t('playlist.advancedHint')),
-          h(Switch, {
-            id: 'dsks-playlist-enable',
-            checked: Boolean(playlist.enabled),
-            label: t('playlist.enable'),
-            hint: t('playlist.enableHint'),
-            disabled: busy === 'enable',
-            onChange: () => toggleEnabled(),
-          }),
           h(
             'div',
-            { className: 'dsks-switch dsks-playlist-keys' },
-            h(
-              'div',
-              { className: 'dsks-switch-text' },
-              h('span', { className: 'dsks-switch-label' }, t('playlist.shortcut')),
-              h('span', { className: 'dsks-switch-hint' }, t('playlist.shortcutHint')),
-            ),
-            h(
-              'span',
-              { className: 'dsks-keycaps' },
-              ...playlistKeys.map((key, index) =>
-                key === '+' ? h('span', { key: index, className: 'dsks-keycap-plus' }, '+') : h('kbd', { key: index, className: 'dsks-keycap' }, key),
+            { className: 'dsks-playlist-enable' },
+            h(Switch, {
+              id: 'dsks-playlist-enable',
+              checked: Boolean(playlist.enabled),
+              label: t('playlist.enable'),
+              hint: t('playlist.enableHint'),
+              disabled: busy === 'enable',
+              // The switch's own shortcut sits right after its title instead of
+              // in a separate row; the keycaps follow a rebind in Settings →
+              // Shortcuts.
+              extra: h(
+                'span',
+                { className: 'dsks-keycaps', title: t('playlist.shortcutHint'), 'aria-label': t('playlist.shortcutHint') },
+                ...playlistKeys.map((key, index) =>
+                  key === '+' ? h('span', { key: index, className: 'dsks-keycap-plus' }, '+') : h('kbd', { key: index, className: 'dsks-keycap' }, key),
+                ),
               ),
-            ),
+              onChange: () => toggleEnabled(),
+            }),
           ),
           h(
             'div',
@@ -3978,7 +3929,9 @@ let videoSettings = { autoplay: true, muted: true }
 .dsks-playlist-field{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .dsks-playlist-field .dsks-field-label{flex:none}
 .dsks-playlist-path{flex:1 1 200px;min-width:0;font-size:12px;color:var(--dsw-alias-label-secondary)}
-.dsks-playlist-keys{border-bottom:none;padding-bottom:0}
+/* Title line of a switch, with the shortcut keycaps right after the label. */
+.dsks-switch-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.dsks-switch-line .dsks-keycaps{flex:none}
 .dsks-playlist-history{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-bottom:1px solid var(--dsw-alias-border-l1)}
 .dsks-playlist-history-list{display:flex;flex-direction:column;gap:2px;margin:4px 0 0;padding:0;list-style:none;max-height:168px;overflow:auto}
 .dsks-playlist-history-item{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:7px;font-size:12px;color:var(--dsw-alias-label-secondary);cursor:default;user-select:none}
@@ -4013,6 +3966,8 @@ let videoSettings = { autoplay: true, muted: true }
       inject: ['slots'],
       /** Test seam: the row and detail card are unreachable from a static render. */
       __components: { SkinRow, SkinDetail, ImportDialog, Switch, VideoSettingsDialog, PlaylistPanel, DesignDialog, AboutDialog, RenameDialog },
+      /** Test seam: the raw dictionaries, so label wording can be asserted. */
+      __strings: STRINGS,
       /** Test seam: the download route is a plain request against the Host. */
       __api: api,
       /** Test seam: the percentage rules belong to the component, not the request. */
