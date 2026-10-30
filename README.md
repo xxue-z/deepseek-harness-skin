@@ -75,7 +75,7 @@ plugin_manager install_bundle  C:\ProgramCustom\Tool\dsh-skin-1.0.7
 |---|---|
 | Release 目录 | 解压新版本到**另一个目录** → 卸载旧条目 → `install_bundle` 新目录 → 重启 |
 | 仓库地址 | 在插件管理器里卸载后重新安装，或指定新版本，然后重启 |
-| 设置页「下载并更新」 | 直接点，会替换插件目录并刷新页面，随后重启一次应用 |
+| 设置页「下载并更新」 | 直接点：由 Host 取包并解包、替换插件目录，然后**重启一次应用**（版本号在启动时读取） |
 
 「下载并更新」只对**插件自己目录**的安装有效（profile 里是真实拷贝）。如果 profile 里那条是指向
 安装目录的**符号链接 / junction**（`install_bundle` 就是把目录链接进来），点它会提示「当前插件目录是
@@ -83,11 +83,12 @@ plugin_manager install_bundle  C:\ProgramCustom\Tool\dsh-skin-1.0.7
 
 ```bash
 cd <仓库目录>
-git pull            # 或 git checkout v1.0.9
+git pull            # 或 git checkout v1.0.13
 ```
 
-然后重启应用。另外，这个按钮由浏览器先跨域去 GitHub 取 release 附件，网络不通（`Failed to fetch`）
-时请打开「打开发布页」手动下载附件，再按「Release 目录」那一行安装。
+然后重启应用。下载由 Host 完成（浏览器直连 GitHub 会被 CORS 挡住），所以按钮能否用取决于 **Host 进程**
+能否访问 GitHub；Host 也连不上时会给出具体原因，可改用「打开发布页」手动下载附件，再按「Release 目录」
+那一行安装。
 
 **升级到改了包名的版本**（例如从 `@local/dsh-skin` 到 `@xxue-z/dsh-skin`）时，必须先卸载旧名字那条：
 loader 里残留的旧条目会继续去找一个已不存在的目录，表现为

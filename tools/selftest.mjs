@@ -5,7 +5,7 @@
  *
  *   node tools/selftest.mjs [codexThemesDir]
  */
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -13,16 +13,17 @@ import { fileURLToPath } from 'node:url'
 import { authoredTransparency, convertCodexTheme, findThemeRoot } from '../lib/convert.js'
 import { SkinStore } from '../lib/store.js'
 import { SkinService } from '../lib/service.js'
-import { createSkinHandler } from '../lib/api.js'
+import { assertReleaseUrl, createSkinHandler, fetchReleaseAsset } from '../lib/api.js'
 import { contrastRatio, derivePalette, paletteFromText, parseColor } from '../lib/palette.js'
 import { readZip } from '../lib/zip.js'
 import { zipSync } from './zip-fixture.mjs'
 import { makeMp4 } from './mp4-fixture.mjs'
+import { makeTarball } from './tar-fixture.mjs'
 import { createSkinTool } from '../lib/tool.js'
 import { decodeVideoDataUrl } from '../lib/service.js'
 import { checkForUpdate, compareVersions, parseVersion } from '../lib/update.js'
 import { listBundled, seedBundledThemes } from '../lib/bundled.js'
-import { installStagedBundle } from '../index.js'
+import { installStagedBundle, readTarGz, unpackBundle } from '../index.js'
 
 /** Package root, shared with the bundled-theme checks below. */
 const here = dirname(fileURLToPath(import.meta.url))
@@ -491,8 +492,159 @@ console.log('update check')
   check('an unreachable GitHub is not an error the page throws on', offline.error === 'offline' && offline.current === '1.0.2')
 }
 
+console.log('update download proxy')
+{
+  // The page cannot fetch a release itself: neither GitHub hop sends a CORS
+  // header. The Host fetches it instead, so its URL checks are the only thing
+  // standing between the page and an arbitrary download.
+  const response = (body, headers = {}) => ({
+    ok: true,
+    status: 200,
+    headers: { get: (name) => headers[String(name).toLowerCase()] ?? null },
+    arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength),
+  })
+
+  const refused = (url) => {
+    try {
+      assertReleaseUrl(url)
+      return null
+    } catch (error) {
+      return error
+    }
+  }
+  check('a release URL on GitHub passes', refused('https://github.com/x/y/releases/download/v1.0.3/a.tgz') === null)
+  check('the asset host passes', refused('https://release-assets.githubusercontent.com/a.tgz?sig=1') === null)
+  check('another host is refused', /不支持的更新下载源/.test(refused('https://evil.example/a.tgz')?.message ?? ''))
+  check('plain http is refused', /https/.test(refused('http://github.com/x/y/a.tgz')?.message ?? ''))
+  check('a file URL is refused', /https/.test(refused('file:///C:/Windows/System32/notepad.exe')?.message ?? ''))
+  check('garbage is refused', /不合法/.test(refused('not a url')?.message ?? ''))
+
+  const assetUrl = 'https://github.com/x/y/releases/download/v1.0.3/a.tgz'
+
+  // Real bytes come back, and the download follows the redirect the way curl
+  // in a shell would (the Host is not subject to CORS).
+  const fetched = await fetchReleaseAsset(assetUrl, {
+    fetchImpl: async (url, options) => {
+      check('the Host follows redirects itself', options?.redirect === 'follow', String(options?.redirect))
+      return response(new Uint8Array([42, 43, 44]), { 'content-type': 'application/octet-stream' })
+    },
+  })
+  check('the proxy returns the asset bytes', fetched.bytes.length === 3 && fetched.bytes[0] === 42)
+  check('the proxy reports the content type', fetched.contentType === 'application/octet-stream')
+
+  // Size limits come from both the declared length and the actual body.
+  const tooBigDeclared = await fetchReleaseAsset(assetUrl, {
+    maxBytes: 2,
+    fetchImpl: async () => response(new Uint8Array([1]), { 'content-length': '999' }),
+  }).then(
+    () => null,
+    (error) => error,
+  )
+  check('an oversized declared length is refused', /过大/.test(tooBigDeclared?.message ?? ''), String(tooBigDeclared?.message))
+
+  const tooBigBody = await fetchReleaseAsset(assetUrl, {
+    maxBytes: 2,
+    fetchImpl: async () => response(new Uint8Array([1, 2, 3])),
+  }).then(
+    () => null,
+    (error) => error,
+  )
+  check('an oversized body is refused', /过大/.test(tooBigBody?.message ?? ''), String(tooBigBody?.message))
+
+  const empty = await fetchReleaseAsset(assetUrl, { fetchImpl: async () => response(new Uint8Array(0)) }).then(
+    () => null,
+    (error) => error,
+  )
+  check('an empty body is refused', /为空/.test(empty?.message ?? ''), String(empty?.message))
+
+  const failed = await fetchReleaseAsset(assetUrl, {
+    fetchImpl: async () => ({ ok: false, status: 404, headers: { get: () => null } }),
+  }).then(
+    () => null,
+    (error) => error,
+  )
+  check('a GitHub error is reported with its status', /HTTP 404/.test(failed?.message ?? ''), String(failed?.message))
+
+  // A download that never finishes has to end, not hang the request.
+  const timedOut = await fetchReleaseAsset(assetUrl, {
+    timeoutMs: 20,
+    fetchImpl: (url, options) =>
+      new Promise((resolve, reject) => {
+        options.signal.addEventListener('abort', () => {
+          const error = new Error('aborted')
+          error.name = 'AbortError'
+          reject(error)
+        })
+      }),
+  }).then(
+    () => null,
+    (error) => error,
+  )
+  check('a stalled download times out', /超时/.test(timedOut?.message ?? ''), String(timedOut?.message))
+}
+
 console.log('update install')
 {
+  // The release asset is a .tar.gz. Staging has to unpack it: the swap is a
+  // rename of a directory, and an installed tree is not one archive.
+  const manifest = JSON.stringify({ name: '@xxue-z/dsh-skin', version: '1.0.11' })
+  const bundle = makeTarball([
+    { path: './package.json', data: Buffer.from(manifest) },
+    { path: './index.js', data: Buffer.from('export {}\n') },
+    { path: './lib/', dir: true },
+    { path: './lib/playlist.js', data: Buffer.from('// playlist\n') },
+    { path: './bundled-themes/', dir: true },
+  ])
+  const unpackRoot = mkdtempSync(join(tmpdir(), 'dsh-skin-unpack-'))
+  const unpacked = unpackBundle(bundle, unpackRoot)
+  check('a release tarball unpacks', unpacked.files === 3, JSON.stringify(unpacked))
+  check('the unpacked manifest is the bundle one', readFileSync(join(unpackRoot, 'package.json'), 'utf8') === manifest)
+  check('nested files land in place', readFileSync(join(unpackRoot, 'lib', 'playlist.js'), 'utf8') === '// playlist\n')
+  check('directories are created', statSync(join(unpackRoot, 'bundled-themes')).isDirectory())
+  rmSync(unpackRoot, { recursive: true, force: true })
+
+  // A member that climbs out of the target is refused, and nothing is written
+  // outside it.
+  const escapeRoot = mkdtempSync(join(tmpdir(), 'dsh-skin-escape-'))
+  let escaped = null
+  try {
+    unpackBundle(
+      makeTarball([
+        { path: './package.json', data: Buffer.from('{}') },
+        { path: '../evil.txt', data: Buffer.from('x') },
+      ]),
+      join(escapeRoot, 'nested'),
+    )
+  } catch (error) {
+    escaped = error
+  }
+  check('a path escaping the target is refused', /越界路径/.test(escaped?.message ?? ''), String(escaped?.message))
+  check('the escaping path was not written', !existsSync(join(escapeRoot, 'evil.txt')))
+  rmSync(escapeRoot, { recursive: true, force: true })
+
+  // A bundle without a manifest is exactly the failure this used to ship:
+  // it must be named at unpack time, not at swap time.
+  const noManifestRoot = mkdtempSync(join(tmpdir(), 'dsh-skin-badmanifest-'))
+  let missingManifest = null
+  try {
+    unpackBundle(makeTarball([{ path: './index.js', data: Buffer.from('x') }]), noManifestRoot)
+  } catch (error) {
+    missingManifest = error
+  }
+  check('a tarball without a manifest is refused', /缺少 package.json/.test(missingManifest?.message ?? ''), String(missingManifest?.message))
+  rmSync(noManifestRoot, { recursive: true, force: true })
+
+  const rejects = (bytes) => {
+    try {
+      readTarGz(bytes)
+      return null
+    } catch (error) {
+      return error
+    }
+  }
+  check('a non-gzip body is refused', /gzip/.test(rejects(Buffer.from('not a tarball'))?.message ?? ''), String(rejects(Buffer.from('not a tarball'))?.message))
+  check('an empty body is refused', /为空/.test(rejects(Buffer.alloc(0))?.message ?? ''), String(rejects(Buffer.alloc(0))?.message))
+
   // The profile links the package (plugin_manager install_bundle), so the
   // directory the plugin runs in can be a junction into the user's checkout.
   // installStagedBundle must refuse that rename — otherwise only the link is
@@ -513,6 +665,9 @@ console.log('update install')
   writeFileSync(join(plain, 'package.json'), JSON.stringify({ name: '@xxue-z/dsh-skin', version: '1.0.8' }))
   const swapped = await installStagedBundle({ directory: staging, target: plain, root: library })
   check('an ordinary install is replaced', readVersionAt(plain) === '1.0.9' && readVersionAt(swapped.backup) === '1.0.8')
+  // The swap reports the disk version; the running Host keeps its own. The
+  // install route must therefore ask for a restart, never a page reload.
+  check('the swap does not claim the new build is running', swapped.version === undefined)
 
   // A link has to be refused before anything is renamed.
   const restaged = join(library, 'update', 'v-1.0.9-y')

@@ -103,12 +103,15 @@ window.__ModuleLoader__.load({
         'about.noRelease': '还没有发布版本',
         'about.install': '下载并更新',
         'about.downloading': '正在下载更新包…',
+        'about.downloadingPercent': '正在下载更新包 {percent}%（{loaded} / {total}）',
+        'about.downloadingSized': '正在下载更新包（已下载 {loaded}）',
         'about.installing': '正在替换文件…',
         'about.installed': '已更新，正在重新加载…',
         'about.openRelease': '打开发布页',
         'about.fetchFailed':
           '下载更新包失败：浏览器取不到 GitHub 上的 release 文件（常见原因：网络不通、需要代理，或浏览器拦截了跨域下载）。可以在浏览器里打开“打开发布页”，手动下载附件后重新安装。',
         'about.manualRestart': '文件已替换，请重启一次应用后生效（这是手动安装的目录，插件无法自更新）。',
+        'about.updatedRestart': '文件已替换为 {to}，但正在运行的是 {from}：重启一次应用后版本号才会更新。',
         'about.retry': '可以再点一次「下载并更新」重试',
         'design.base': '以当前主题为基底微调',
         'design.working': '正在设计…',
@@ -286,12 +289,15 @@ window.__ModuleLoader__.load({
         'about.noRelease': 'No release published yet',
         'about.install': 'Download and update',
         'about.downloading': 'Downloading the update…',
+        'about.downloadingPercent': 'Downloading the update — {percent}% ({loaded} / {total})',
+        'about.downloadingSized': 'Downloading the update ({loaded})',
         'about.installing': 'Replacing files…',
         'about.installed': 'Updated — reloading…',
         'about.openRelease': 'Open release',
         'about.fetchFailed':
           'Could not download the release asset: the browser could not reach GitHub (network/proxy, or the download was blocked). Open the release page and install the attached bundle by hand instead.',
         'about.manualRestart': 'Files were replaced. Restart the app once to load them — this install is a directory the plugin cannot restart by itself.',
+        'about.updatedRestart': 'Files were replaced with {to}, but {from} is still running: restart the app once and the version will update.',
         'about.retry': 'click “Download and update” again to retry',
         'design.base': 'Restyle the selected skin',
         'design.working': 'Designing…',
@@ -652,6 +658,70 @@ window.__ModuleLoader__.load({
     const api = {
       version: () => rootRequest('version'),
       checkUpdate: () => rootRequest('update-check'),
+      /**
+       * Ask the Host for the release bytes.
+       *
+       * The page cannot fetch them itself: both GitHub hops send no
+       * `Access-Control-Allow-Origin`, so a cross-origin fetch is rejected as
+       * "Failed to fetch" whatever the redirect handling. The Host is not
+       * subject to CORS and answers from the page's own origin.
+       *
+       * @param {string} url the release asset URL from the update check
+       * @param {{ expectedBytes?: number, onProgress?: (loaded: number, total: number | null) => void }} [options]
+       * @returns {Promise<Uint8Array>}
+       */
+      downloadUpdate: async (url, options = {}) => {
+        // Read `fetch` off the global at call time: the test suite swaps it,
+        // and the module's entry-time binding would pin the original.
+        const response = await globalThis.fetch(`${ROOT}/update/download`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ url }),
+        })
+        if (!response.ok) {
+          // An error comes back as JSON; the success path is raw bytes.
+          let message = `下载失败（HTTP ${response.status}）`
+          try {
+            const payload = await response.json()
+            if (payload?.error) message = payload.error
+          } catch {
+            /* not JSON: keep the status message */
+          }
+          throw new Error(message)
+        }
+        // The release asset knows its own size from the update check, which is
+        // the only total available when the Host streams without a length.
+        const declared = Number(response.headers?.get?.('content-length'))
+        const expected = Number.isFinite(options.expectedBytes) && options.expectedBytes > 0 ? options.expectedBytes : null
+        const total = Number.isFinite(declared) && declared > 0 ? declared : expected
+        const body = response.body
+        if (!body || typeof body.getReader !== 'function') {
+          const bytes = new Uint8Array(await response.arrayBuffer())
+          // No stream to watch: the whole body lands at once, so the total is
+          // only the asset size the update check reported.
+          options.onProgress?.(bytes.byteLength, expected)
+          return bytes
+        }
+        const reader = body.getReader()
+        const chunks = []
+        let loaded = 0
+        options.onProgress?.(0, total)
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          chunks.push(value)
+          loaded += value.byteLength
+          options.onProgress?.(loaded, total)
+        }
+        const bytes = new Uint8Array(loaded)
+        let offset = 0
+        for (const chunk of chunks) {
+          bytes.set(chunk, offset)
+          offset += chunk.byteLength
+        }
+        options.onProgress?.(loaded, total ?? loaded)
+        return bytes
+      },
       installUpdate: (bytes) => rootRequest('update/install', { method: 'POST', body: bytes }),
       snapshot: () => request('snapshot'),
       ping: () => request('ping', { method: 'POST', body: '{}' }),
@@ -2588,7 +2658,53 @@ let videoSettings = { autoplay: true, muted: true }
      * The update path matches how the plugin is installed — a bundle that lives
      * in a directory. Downloading a release replaces that directory and reloads
      * the Host and the page; nothing outside the package is touched.
+     *
+     * The bytes come through the Host (`POST /skin/update/download`), not from
+     * GitHub directly: neither GitHub hop sends a CORS header, so a page-level
+     * fetch is rejected as "Failed to fetch" before any byte arrives.
      */
+    /**
+     * An error that says whether clicking again could help.
+     *
+     * A failed transfer is worth a retry; a bundle or a target directory the
+     * Host refused will fail identically every time, and suggesting "click
+     * again" there only wastes the user's click.
+     *
+     * @param {string} message
+     * @param {boolean} retry
+     */
+    function errorWithRetry(message, retry) {
+      const error = new Error(message)
+      error.retry = retry
+      return error
+    }
+
+    /**
+     * Turn raw byte counts into what the progress bar shows.
+     *
+     * The percentage only exists when the total is known; without it the bar
+     * stays indeterminate rather than inventing a number.
+     *
+     * @param {number} loaded
+     * @param {number | null} total
+     * @returns {{ percent: number | null, loaded: number, total: number | null }}
+     */
+    function toProgress(loaded, total) {
+      const bytes = Number.isFinite(loaded) && loaded > 0 ? loaded : 0
+      const size = Number.isFinite(total) && total > 0 ? total : null
+      const raw = size === null ? null : Math.floor((bytes / size) * 100)
+      return {
+        // 100 is only reached once the bytes are actually all there.
+        percent: raw === null ? null : bytes < size ? Math.max(0, Math.min(99, raw)) : 100,
+        loaded: bytes,
+        total: size,
+      }
+    }
+
+    function formatMegabytes(bytes) {
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    }
+
     function AboutDialog({ t, version, info, release, onChecked, onClose }) {
       // Key the state on the release it was opened with, so an update found at
       // startup is what the sheet shows on its first paint.
@@ -2597,6 +2713,7 @@ let videoSettings = { autoplay: true, muted: true }
       const [error, setError] = useState(null)
       const [phase, setPhase] = useState(null)
       const [manual, setManual] = useState(null)
+      const [progress, setProgress] = useState({ percent: 0, loaded: 0, total: null })
       if (check === null && release !== null && release !== undefined) setCheck(release)
       const run = async () => {
         setChecking(true)
@@ -2615,6 +2732,7 @@ let videoSettings = { autoplay: true, muted: true }
       }
       const install = async () => {
         setPhase('downloading')
+        setProgress({ percent: 0, loaded: 0, total: null })
         setError(null)
         let downloaded = false
         try {
@@ -2623,35 +2741,47 @@ let videoSettings = { autoplay: true, muted: true }
           const url =
             check.asset?.url ??
             `https://codeload.github.com/${info.repository}/tar.gz/refs/tags/${encodeURIComponent(check.tag)}`
-          let response
+          let bytes
           try {
-            response = await fetch(url)
+            bytes = await api.downloadUpdate(url, {
+              expectedBytes: check.asset?.size ?? null,
+              onProgress: (loaded, total) => setProgress(toProgress(loaded, total)),
+            })
           } catch (failure) {
-            // "Failed to fetch" is the browser's opaque word for DNS, TLS,
-            // CORS and offline — none of which say what to do next.
-            throw new Error(`${t('about.fetchFailed')}（${failure instanceof Error ? failure.message : String(failure)}）`)
+            // The Host reports why it could not reach GitHub; a bare "Failed to
+            // fetch" only happens when the page cannot reach its own Host.
+            throw errorWithRetry(`${t('about.fetchFailed')}（${failure instanceof Error ? failure.message : String(failure)}）`, false)
           }
-          if (!response.ok) throw new Error(`下载失败（HTTP ${response.status}）`)
-          const bytes = new Uint8Array(await response.arrayBuffer())
           downloaded = true
           if (check.checksum?.url) {
-            const expected = (await (await fetch(check.checksum.url)).text()).trim().split(/\s+/)[0]
+            // Same CORS block as the bundle, so the Host fetches this too.
+            const expected = new TextDecoder().decode(await api.downloadUpdate(check.checksum.url)).trim().split(/\s+/)[0]
             const digest = await sha256Hex(bytes)
             if (expected && digest.toLowerCase() !== expected.toLowerCase()) throw new Error('下载的更新包校验和不符，已取消安装')
           }
           setPhase('installing')
           const result = await api.installUpdate(bytes)
           setPhase('done')
-          // A directory the plugin owns reloads itself; one installed by hand
-          // (a bundle the profile links to) has to be restarted by the user.
-          if (result?.reload === false) setManual(result.restartMessage ?? t('about.manualRestart'))
-          else setTimeout(() => window.location.reload(), 1200)
+          // A page reload is not enough: the Host read its version and its
+          // modules once, at process start, so the version in Settings and the
+          // Host routes stay on the old build until the app is restarted. Ask
+          // for that restart instead of reloading into a half-updated app.
+          const before = version
+          const after = result?.version ?? null
+          setManual(
+            result?.restartMessage ??
+              (after && after !== before
+                ? `${t('about.updatedRestart', { from: before, to: after })}`
+                : t('about.manualRestart')),
+          )
         } catch (failure) {
           setPhase(null)
           const message = failure instanceof Error ? failure.message : String(failure)
           // The staged bytes are on disk once the download finished, so the
-          // next click is free and worth suggesting.
-          setError(downloaded ? `${message}（${t('about.retry')}）` : message)
+          // next click is free and worth suggesting — unless the bundle itself
+          // is unusable, in which case retrying would fail the same way.
+          const retry = failure?.retry !== false && downloaded
+          setError(retry ? `${message}（${t('about.retry')}）` : message)
         }
       }
       const latest = check?.latest ?? null
@@ -2696,7 +2826,30 @@ let videoSettings = { autoplay: true, muted: true }
           phase === 'done'
             ? h('p', { className: manual ? 'dsks-hint dsks-warn' : 'dsks-hint' }, manual ?? t('about.installed'))
             : phase !== null
-              ? h('p', { className: 'dsks-hint' }, phase === 'downloading' ? t('about.downloading') : t('about.installing'))
+              ? h(
+                  'div',
+                  { className: 'dsks-progress-block' },
+                  h(
+                    'p',
+                    { className: 'dsks-hint' },
+                    phase === 'downloading'
+                      ? progress.percent === null
+                        ? t('about.downloadingSized', { loaded: formatMegabytes(progress.loaded) })
+                        : t('about.downloadingPercent', {
+                            percent: progress.percent,
+                            loaded: formatMegabytes(progress.loaded),
+                            total: progress.total === null ? '' : formatMegabytes(progress.total),
+                          })
+                      : t('about.installing'),
+                  ),
+                  phase === 'downloading'
+                    ? h(
+                        'div',
+                        { className: 'dsks-progress', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': progress.percent ?? 0 },
+                        h('div', { className: 'dsks-progress-fill', style: { width: `${progress.percent ?? 0}%` } }),
+                      )
+                    : null,
+                )
               : null,
           error ? h('p', { className: 'dsks-error' }, error) : null,
           check?.error ? h('p', { className: 'dsks-hint dsks-warn' }, check.error) : null,
@@ -3669,6 +3822,12 @@ let videoSettings = { autoplay: true, muted: true }
 .dsks-about-head{margin:10px 0 0;font-size:13px;font-weight:600}
 .dsks-about-update{color:var(--dsw-alias-brand-primary);font-size:13px;font-weight:500;margin:0}
 .dsks-about-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+/* Download progress: the bar sits under "正在下载更新包 N%", and the sheet must
+   not jump when the install phase swaps it out. */
+.dsks-progress-block{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.dsks-progress{position:relative;overflow:hidden;height:6px;border-radius:999px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2)}
+.dsks-progress-fill{height:100%;border-radius:inherit;background:var(--dsw-alias-brand-primary);transition:width .18s ease-out}
+@media (prefers-reduced-motion: reduce){.dsks-progress-fill{transition:none}}
 .dsks-video-layer{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
 /* A playlist on a static theme sits *above* the plugin's own wallpaper layer
    (which is drawn at z-index 0 with #root lifted to 1); the +1 keeps the clip
@@ -3716,6 +3875,10 @@ let videoSettings = { autoplay: true, muted: true }
       inject: ['slots'],
       /** Test seam: the row and detail card are unreachable from a static render. */
       __components: { SkinRow, SkinDetail, ImportDialog, Switch, VideoSettingsDialog, PlaylistPanel, DesignDialog, AboutDialog, RenameDialog },
+      /** Test seam: the download route is a plain request against the Host. */
+      __api: api,
+      /** Test seam: the percentage rules belong to the component, not the request. */
+      __progress: { toProgress, formatMegabytes },
       apply(ctx) {
         const runtime = createRuntime(ctx)
         ctx.effect(() => runtime.start())

@@ -8,8 +8,9 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { rename } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { gunzipSync } from 'node:zlib'
 import { createSkinHandler } from './lib/api.js'
 import { seedBundledThemes } from './lib/bundled.js'
 import { defaultCodexDirs, SkinService } from './lib/service.js'
@@ -42,6 +43,98 @@ function readRealpath(path) {
   } catch {
     return null
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* release bundle unpacking                                                    */
+/* -------------------------------------------------------------------------- */
+
+/** A release bundle is source only; anything larger than this is not one. */
+const MAX_UNPACKED_BYTES = 256 * 1024 * 1024
+
+/**
+ * Split a gzip'd tar archive into its entries.
+ *
+ * The release asset is `<name>-vX.Y.Z.tar.gz` (possibly with a leading `./` on
+ * every path); `.zip` is not handled here because the release is always a
+ * tarball. Only regular files and directories are accepted — links and device
+ * entries in an "update" are never something to write out.
+ *
+ * @param {Buffer} bytes
+ * @returns {{ path: string, data: Buffer | null }[]}
+ */
+export function readTarGz(bytes) {
+  if (!Buffer.isBuffer(bytes) || bytes.byteLength === 0) throw new Error('更新包为空')
+  let tar
+  try {
+    tar = gunzipSync(bytes)
+  } catch {
+    throw new Error('更新包不是有效的 gzip 文件')
+  }
+  const entries = []
+  let offset = 0
+  let total = 0
+  while (offset + 512 <= tar.length) {
+    const header = tar.subarray(offset, offset + 512)
+    // Two zero blocks end the archive; a zero block on its own is padding.
+    if (header.every((byte) => byte === 0)) break
+    const readString = (start, length) => header.subarray(start, start + length).toString('utf8').replace(/\0.*$/s, '')
+    const name = readString(0, 100)
+    const prefix = readString(345, 155)
+    const full = prefix === '' ? name : `${prefix}/${name}`
+    const sizeField = readString(124, 12).trim()
+    const size = sizeField === '' ? 0 : parseInt(sizeField, 8)
+    if (!Number.isFinite(size) || size < 0) throw new Error('更新包的目录项损坏')
+    const typeflag = String.fromCharCode(header[156] || 48)
+    const dataStart = offset + 512
+    const dataEnd = dataStart + size
+    if (dataEnd > tar.length) throw new Error('更新包被截断')
+    total += size
+    if (total > MAX_UNPACKED_BYTES) throw new Error('更新包解压后过大')
+    if (typeflag === '0' || typeflag === '\0' || typeflag === '7') {
+      entries.push({ path: full, data: tar.subarray(dataStart, dataEnd) })
+    } else if (typeflag === '5') {
+      entries.push({ path: full, data: null })
+    } else {
+      throw new Error(`更新包里有不支持的条目类型：${full}`)
+    }
+    offset = dataStart + Math.ceil(size / 512) * 512
+  }
+  if (entries.length === 0) throw new Error('更新包是空的')
+  return entries
+}
+
+/**
+ * Unpack a release bundle into a directory.
+ *
+ * Paths are resolved under `directory` and refused when they escape it, so a
+ * `../` in an archive cannot write outside the staging area.
+ *
+ * @param {Buffer} bytes
+ * @param {string} directory
+ * @returns {{ files: number, root: string }}
+ */
+export function unpackBundle(bytes, directory) {
+  const target = resolve(directory)
+  const entries = readTarGz(bytes)
+  let files = 0
+  for (const entry of entries) {
+    const relative = entry.path.replace(/^\.\//, '').replace(/\/+$/, '')
+    if (relative === '' || relative === '.') continue
+    const destination = resolve(target, relative)
+    if (destination !== target && !destination.startsWith(target + sep)) {
+      throw new Error(`更新包里有越界路径：${entry.path}`)
+    }
+    if (entry.data === null) {
+      mkdirSync(destination, { recursive: true })
+      continue
+    }
+    mkdirSync(dirname(destination), { recursive: true })
+    writeFileSync(destination, entry.data)
+    files += 1
+  }
+  if (!existsSync(join(target, 'package.json'))) throw new Error('更新包缺少 package.json')
+  return { files, root: target }
 }
 
 /**
@@ -164,11 +257,34 @@ export function apply(ctx, config) {
     const staging = join(store.root, UPDATE_DIR)
     const directory = join(staging, `v-${meta.version}-${Date.now().toString(36)}`)
     mkdirSync(directory, { recursive: true })
+    // The bundle is a tarball, so it has to be unpacked before it can be
+    // swapped in: the installed directory is a real tree, and the swap below
+    // only ever renames. Keep the archive too, so a failed unpack leaves the
+    // bytes for a bug report without a second download.
     writeFileSync(join(directory, 'bundle.tgz'), bytes)
-    return directory
+    const unpacked = join(directory, 'unpacked')
+    mkdirSync(unpacked, { recursive: true })
+    try {
+      unpackBundle(bytes, unpacked)
+    } catch (error) {
+      throw new Error(`更新包无法解压：${error instanceof Error ? error.message : String(error)}`)
+    }
+    return unpacked
   }
 
-  service.installStagedUpdate = (directory) => installStagedBundle({ directory, target: PACKAGE_DIR, root: store.root, log })
+  service.installStagedUpdate = async (directory) => {
+    const installed = await installStagedBundle({ directory, target: PACKAGE_DIR, root: store.root, log })
+    // Read the version the new tree carries, so the page can say what changed.
+    // The Host itself keeps running the build it loaded at start: `meta.version`
+    // is not touched, because nothing in memory has been replaced.
+    const version = readVersion(join(PACKAGE_DIR, 'package.json'))
+    return {
+      ...installed,
+      version,
+      previousVersion: meta.version,
+      restartMessage: `已替换为 ${version}（当前运行的是 ${meta.version}）：重启一次应用后生效，版本号才会更新。`,
+    }
+  }
 
   // Bundled themes: copied into the library once, so a fresh install opens on
   // two ready-made skins instead of an empty list. Deleting one stays deleted.

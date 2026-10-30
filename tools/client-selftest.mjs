@@ -872,6 +872,147 @@ console.log('version badge and update sheet')
     const current = renderAbout({ release: { ...releaseInfo, updateAvailable: false, latest: '1.0.2', tag: 'v1.0.2' } })
     check('the same version reports up to date', current.includes('about.upToDate') && !current.includes('about.install'))
   }
+
+  /* ------------------------------------------- release download through Host */
+  // Neither GitHub hop sends Access-Control-Allow-Origin, so the page cannot
+  // fetch a release itself. The bytes come from the Host's own origin
+  // (POST /skin/update/download), which is not subject to CORS.
+  {
+    const withFetchStub = async (stub, run) => {
+      const saved = globalThis.fetch
+      globalThis.fetch = stub
+      try {
+        return await run()
+      } finally {
+        globalThis.fetch = saved
+      }
+    }
+    const downloadUpdate = exportsModule.__api?.downloadUpdate
+    check('the client asks the Host for the release bytes', typeof downloadUpdate === 'function')
+
+    if (typeof downloadUpdate === 'function') {
+      const assetUrl = 'https://github.com/x/y/releases/download/v1.0.3/a.tgz'
+
+      // The request goes to the page's own origin and carries the asset URL;
+      // the answer is raw bytes, and those bytes are exactly what the Host sent.
+      {
+        const requests = []
+        const payload = new Uint8Array([1, 2, 3, 4, 5])
+        const bytes = await withFetchStub(
+          async (url, options) => {
+            requests.push({ url: String(url), method: options?.method, body: options?.body })
+            return { ok: true, status: 200, arrayBuffer: async () => payload.buffer }
+          },
+          () => downloadUpdate(assetUrl),
+        )
+        check('the download goes to the Host, not GitHub', requests.length === 1 && requests[0].url.endsWith('/skin/update/download'), JSON.stringify(requests))
+        check('the download is a POST carrying the asset URL', requests[0]?.method === 'POST' && JSON.parse(requests[0].body).url === assetUrl, JSON.stringify(requests))
+        check('the download answers with the raw bytes', bytes instanceof Uint8Array && bytes.length === 5 && bytes[2] === 3)
+      }
+
+      // A refusal from the Host arrives as JSON and its message is what the
+      // user needs to see — not an opaque HTTP status.
+      {
+        let error = null
+        try {
+          await withFetchStub(
+            async () => ({
+              ok: false,
+              status: 400,
+              json: async () => ({ ok: false, error: '不支持的更新下载源：evil.example' }),
+            }),
+            () => downloadUpdate('https://evil.example/a.tgz'),
+          )
+        } catch (failure) {
+          error = failure
+        }
+        check('a Host refusal surfaces its reason', error !== null && error.message.includes('不支持的更新下载源'), String(error?.message))
+      }
+
+      // A non-JSON error body still has to say something.
+      {
+        let error = null
+        try {
+          await withFetchStub(
+            async () => ({
+              ok: false,
+              status: 502,
+              json: async () => {
+                throw new Error('not json')
+              },
+            }),
+            () => downloadUpdate(assetUrl),
+          )
+        } catch (failure) {
+          error = failure
+        }
+        check('an unreadable error still reports the status', error !== null && error.message.includes('502'), String(error?.message))
+      }
+
+      // The body is streamed, so the sheet can show how far along it is.
+      {
+        const total = 10
+        const events = []
+        const stream = () => {
+          let index = 0
+          return {
+            getReader: () => ({
+              read: async () => {
+                if (index >= total) return { done: true, value: undefined }
+                index += 1
+                return { done: false, value: new Uint8Array([index]) }
+              },
+            }),
+          }
+        }
+        const bytes = await withFetchStub(
+          async () => ({
+            ok: true,
+            status: 200,
+            // The Host streams the archive; no length header is required.
+            headers: { get: () => null },
+            body: stream(),
+          }),
+          () => downloadUpdate(assetUrl, { expectedBytes: total, onProgress: (loaded, size) => events.push([loaded, size]) }),
+        )
+        check('a streamed download reassembles the bytes', bytes.length === total && bytes[9] === 10, String(bytes.length))
+        // One event before the first read, one per chunk, one at the end.
+        check('the download reports progress as it goes', events.length === total + 2, JSON.stringify(events.slice(0, 3)))
+        check('the progress starts at zero with the known total', events[0]?.[0] === 0 && events[0]?.[1] === total, JSON.stringify(events[0]))
+        check('the progress ends at the asset size', events.at(-1)?.[0] === total && events.at(-1)?.[1] === total, JSON.stringify(events.at(-1)))
+      }
+
+      // Without a stream the whole response arrives at once: progress still
+      // reports, with an unknown total rather than a made-up one.
+      {
+        const events = []
+        await withFetchStub(
+          async () => ({ ok: true, status: 200, headers: { get: () => null }, body: null, arrayBuffer: async () => new ArrayBuffer(4) }),
+          () => downloadUpdate(assetUrl, { onProgress: (loaded, size) => events.push([loaded, size]) }),
+        )
+        check('without a size the total stays unknown', events.at(-1)?.[0] === 4 && events.at(-1)?.[1] === null, JSON.stringify(events))
+      }
+    }
+  }
+
+  /* ------------------------------------------------------ download progress */
+  // The percentage is computed by the component; check the same rules here.
+  {
+    const toProgress = exportsModule.__progress?.toProgress
+    check('the progress helper is exported for testing', typeof toProgress === 'function')
+    if (typeof toProgress === 'function') {
+      const half = toProgress(5, 10)
+      check('a half-finished download is 50%', half.percent === 50, JSON.stringify(half))
+      const nearly = toProgress(9999, 10000)
+      check('99% is the ceiling before the last byte', nearly.percent === 99, JSON.stringify(nearly))
+      const finished = toProgress(10, 10)
+      check('a complete download is 100%', finished.percent === 100, JSON.stringify(finished))
+      const unknown = toProgress(1234, null)
+      check('an unknown total has no percentage', unknown.percent === null && unknown.loaded === 1234, JSON.stringify(unknown))
+      const zero = toProgress(0, 10)
+      check('a fresh download starts at 0%', zero.percent === 0, JSON.stringify(zero))
+    }
+  }
 }
 
 console.log(failures === 0 ? '\nall client checks passed' : `\n${failures} client check(s) failed`)
