@@ -247,7 +247,20 @@ const lightSkin = {
   transparencyOverridden: false,
 }
 
-const snapshot = () => ({ ok: true, snapshot: { version: 1, activeId, themes: [skin, lightSkin], sources: [], dataDir: 'x', model: null, client: null, video: { ...videoSettings } } })
+// A theme with neither wallpaper nor video: #root has no stacking context of
+// its own here, which is exactly the case where a raised background layer used
+// to cover the entire UI.
+const plainSkin = {
+  ...lightSkin,
+  id: 'skin.plain',
+  name: 'Plain',
+  wallpaper: null,
+  video: null,
+  origin: { kind: 'manual' },
+  codex: null,
+}
+
+const snapshot = () => ({ ok: true, snapshot: { version: 1, activeId, themes: [skin, lightSkin, plainSkin], sources: [], dataDir: 'x', model: null, client: null, video: { ...videoSettings } } })
 
 const releaseCalls = []
 
@@ -402,7 +415,7 @@ await flush()
 check('injects the settings section slot', injectedSlots.includes('settings.section'), injectedSlots.join(','))
 check('registers the skin section', slotRegistrations[0]?.options?.id === 'skin', JSON.stringify(slotRegistrations[0]?.options))
 check('section label is localized', slotRegistrations[0]?.options?.label?.() === '主题皮肤')
-check('registers every theme', themeCalls.register.length === 2 && themeCalls.register.some((entry) => entry.id === 'skin.test'))
+check('registers every theme', themeCalls.register.length === 3 && themeCalls.register.some((entry) => entry.id === 'skin.test'))
 check('registers dark color scheme for a dark palette', themeCalls.register.find((entry) => entry.id === 'skin.test')?.colorScheme === 'dark')
 check('registers light scheme for an auto light palette', themeCalls.register.find((entry) => entry.id === 'skin.auto-light')?.colorScheme === 'light')
 const darkReg = themeCalls.register.find((entry) => entry.id === 'skin.test')
@@ -578,13 +591,20 @@ console.log('folder playlist')
   // On a static theme, off means no video at all.
   await runtime.setPlaylistEnabled(true)
   await flush()
-  activeId = lightSkin.id
+  activeId = plainSkin.id
   await runtime.load()
   await flush()
   check('a static theme gets the injected clip', bodyLayer()?.getAttribute('data-source') === 'playlist')
+  // The clip is a *background*: it must stay at z-index 0 with the app shell
+  // above it. A raised layer painted over every panel and hid the whole UI.
+  check('the manager sheet never raises the clip above the UI', !/\.dsks-video-layer\[data-source="playlist"\]\s*\{[^}]*z-index:\s*[1-9]/.test(String(managerTag?.textContent)))
+  const sheetWhileOn = styleTags.find((tag) => tag.getAttribute('data-plugin-css') === 'skin')?.textContent ?? ''
+  check('a wallpaper-less theme still lifts the app shell', sheetWhileOn.includes('#root{position:relative;z-index:1;}'), sheetWhileOn.slice(0, 300))
   await runtime.setPlaylistEnabled(false)
   await flush()
   check('switching off leaves the static theme with no video', bodyLayer() === undefined, JSON.stringify(document.body.children.map((child) => child.className)))
+  const sheetWhileOff = styleTags.find((tag) => tag.getAttribute('data-plugin-css') === 'skin')?.textContent ?? ''
+  check('switching off restores the theme sheet', !sheetWhileOff.includes('#root{position:relative;z-index:1;}'), sheetWhileOff.slice(0, 300))
   activeId = skin.id
   await runtime.load()
   await flush()

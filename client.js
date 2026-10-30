@@ -596,7 +596,7 @@ window.__ModuleLoader__.load({
       return Math.round(Math.min(1, veil + extra) * 1000) / 1000
     }
 
-    function wallpaperCss(skin, transparency) {
+    function wallpaperCss(skin, transparency, hasInjectedBackground = false) {
       const rules = []
       if (skin.wallpaper?.url) {
         const alpha = veilAlphaFor(skin, transparency)
@@ -614,6 +614,12 @@ window.__ModuleLoader__.load({
         // it for the same reason.
         rules.push('#root{position:relative;z-index:1;}')
       }
+      // The folder playlist draws a background layer even when the theme has
+      // neither wallpaper nor video (a static theme), so the app shell has to be
+      // lifted above it there too. Without this the z-index:0 layer painted over
+      // ordinary themes and hid the whole UI.
+      const lifted = '#root{position:relative;z-index:1;}'
+      if (hasInjectedBackground && !rules.includes(lifted)) rules.push(lifted)
       // Dialogs float above other UI; blurring their backdrop is what turns a
 // translucent fill into a glass card instead of a window onto the page.
       rules.push('[role="dialog"],[role="alertdialog"]{backdrop-filter:blur(18px) saturate(1.12);-webkit-backdrop-filter:blur(18px) saturate(1.12);}')
@@ -1094,6 +1100,10 @@ let videoSettings = { autoplay: true, muted: true }
 
       function syncVideo(skin, transparency) {
         const source = playbackFor(skin)
+        // Keep the theme sheet in step with the playlist: a static theme needs
+        // #root lifted while a clip is injected, and the rule must go away with
+        // the clip so the original theme is left exactly as it was.
+        writeWallpaper(skin, transparency)
         if (!source || !shouldPlay(skin)) {
           destroyVideo()
           return
@@ -1699,7 +1709,20 @@ let videoSettings = { autoplay: true, muted: true }
 
       function writeWallpaper(skin, transparency) {
         const element = ensureStyleElement()
-        element.textContent = skin ? wallpaperCss(skin, transparency) : ''
+        // Pass the playlist state so a static theme gets its #root lifted too;
+        // the video layer itself stays at z-index 0 like every other background.
+        element.textContent = skin ? wallpaperCss(skin, transparency, backgroundIsInjected()) : ''
+      }
+
+      /**
+       * Whether a background layer will be on screen that the theme's own sheet
+       * does not already account for: the folder playlist drawing a clip on a
+       * theme with no wallpaper and no MP4.
+       */
+      function backgroundIsInjected() {
+        if (!playlist.enabled || playlist.videos.length === 0) return false
+        const skin = currentSkin()
+        return Boolean(skin) && !skin.wallpaper?.url && !skin.video?.url
       }
 
       function register(skin) {
@@ -3860,10 +3883,11 @@ let videoSettings = { autoplay: true, muted: true }
 .dsks-progress-fill{height:100%;border-radius:inherit;background:var(--dsw-alias-brand-primary);transition:width .18s ease-out}
 @media (prefers-reduced-motion: reduce){.dsks-progress-fill{transition:none}}
 .dsks-video-layer{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-/* A playlist on a static theme sits *above* the plugin's own wallpaper layer
-   (which is drawn at z-index 0 with #root lifted to 1); the +1 keeps the clip
-   in front of the still and behind every piece of UI. */
-.dsks-video-layer[data-source="playlist"]{z-index:1}
+/* The playlist clip is a *background*, exactly like the theme's own video: it
+   stays at z-index 0 behind #root. It must never be raised above the UI — a
+   higher value would paint over every panel on a theme whose #root has no
+   stacking context. */
+.dsks-video-layer[data-source="playlist"]{z-index:0}
 .dsks-video-layer video{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .45s ease-out}
 .dsks-video-layer[data-ready] video{opacity:1}
 .dsks-video-veil{position:absolute;inset:0;display:block;pointer-events:none}
