@@ -842,6 +842,8 @@ let videoSettings = { autoplay: true, muted: true }
       let lastTracked = ''
       /** Why the browser refused the floating window, for the panel to show. */
       let pipError = null
+      /** Set when this page itself clears the folder, so the next snapshot may take the empty value. */
+      let allowFolderClear = false
 
       /** The skin currently applied, or null when no skin is in use. */
       function currentSkin() {
@@ -1424,6 +1426,9 @@ let videoSettings = { autoplay: true, muted: true }
         const before = playlist.settings.folder
         const next = { ...playlist.settings, ...input }
         playlist.settings = next
+        // An explicit folder in this request is the page's own choice (clear or
+        // change), so the snapshot that comes back may legitimately be empty.
+        if ('folder' in input) allowFolderClear = input.folder === ''
         // Reported to the panel when the browser refuses the floating window.
         if (typeof input.pictureInPicture === 'boolean') pipError = null
         if (typeof input.speed === 'number') applySpeed(next.speed)
@@ -1435,6 +1440,13 @@ let videoSettings = { autoplay: true, muted: true }
           const saved = payload?.playlist ?? null
           if (saved) {
             const { position: _position, ...preferences } = saved
+            // A response whose folder is empty while this request did not ask to
+            // clear it means the Host lost the value (an older build spread a
+            // missing `folder` over the saved settings on any unrelated toggle).
+            // Keep what we have rather than silently blanking the path on screen.
+            if (!('folder' in input) && preferences.folder === '' && playlist.settings.folder !== '') {
+              delete preferences.folder
+            }
             playlist.settings = { ...playlist.settings, ...preferences }
           }
           // Only the folder moves the playback position; speed and PiP leave it.
@@ -1906,6 +1918,16 @@ let videoSettings = { autoplay: true, muted: true }
         // video is torn down on the next sync.
         if (next.playlist && typeof next.playlist === 'object') {
           const { enabled, position: _position, ...preferences } = next.playlist
+          // Guard against a Host that lost the folder: every snapshot from an
+          // older build carries `folder: ''` after any unrelated toggle, and
+          // taking it here blanked the path on screen. The folder only clears
+          // when this page asked for it (picking/clearing) or when the Host
+          // reports a reset it performed itself.
+          const hostReset = next.playlist.folderReset === true
+          if (!allowFolderClear && !hostReset && preferences.folder === '' && playlist.settings.folder !== '') {
+            delete preferences.folder
+          }
+          allowFolderClear = false
           playlist.settings = { ...playlist.settings, ...preferences }
           playlist.enabled = enabled === true
         }

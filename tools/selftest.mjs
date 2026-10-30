@@ -326,6 +326,21 @@ console.log('folder playlist')
   check('settings are persisted', new SkinStore(join(dir, 'skin')).readState().playlist.speed === 1.5)
   service.setPlaylistSettings({ speed: 3 })
   check('an unsupported speed falls back to 1x', service.playlistSettings().speed === 1, String(service.playlistSettings().speed))
+
+  // Toggling one preference must not disturb the others. The settings endpoint
+  // always sends `folder`, and it sends `undefined` when the request did not
+  // carry one; spreading that over the current settings used to wipe the folder
+  // (which is what "clicking picture-in-picture clears the path" was).
+  service.setPlaylistSettings({ folder })
+  service.setPlaylistSettings({ folder: undefined, speed: 1.25, pictureInPicture: undefined })
+  check('an undefined folder keeps the saved one', service.playlistSettings().folder === folder, service.playlistSettings().folder)
+  service.setPlaylistSettings({ folder: undefined, pictureInPicture: true })
+  check('toggling picture-in-picture keeps the folder', service.playlistSettings().folder === folder, service.playlistSettings().folder)
+  check('toggling picture-in-picture keeps the speed', service.playlistSettings().speed === 1.25, String(service.playlistSettings().speed))
+  check('toggling picture-in-picture applies the switch', service.playlistSettings().pictureInPicture === true)
+  service.setPlaylistSettings({ folder: null, speed: null })
+  check('a null folder keeps the saved one', service.playlistSettings().folder === folder, service.playlistSettings().folder)
+
   service.setPlaylistSettings({ folder: 'relative/path' })
   check('a relative folder is refused', service.playlistSettings().folder === '', service.playlistSettings().folder)
   service.setPlaylistSettings({ folder })

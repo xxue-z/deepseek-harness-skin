@@ -320,6 +320,8 @@ const releaseCalls = []
 const playlistDir = 'C:\\clips\\wallpaper'
 let playlistSettings = { folder: '', speed: 1, pictureInPicture: false, history: [] }
 let playlistEnabled = false
+/** Test hook: make the fake Host lose the folder, as the shipped 1.0.18 build did. */
+let dropPlaylistFolder = false
 let playlistTracked = { folder: '', signature: '', index: 0, second: 0 }
 const trackCalls = []
 const pipeline = ['第一集.mp4', '第二集.mp4', '第十集.mp4'].map((name, index) => ({
@@ -349,7 +351,16 @@ globalThis.fetch = async (url, options) => {
       : { ok: true, folder: '', order: [], videos: [] }
   } else if (path.includes('/skin/api/playlist-settings')) {
     const patch = JSON.parse(options?.body ?? '{}')
-    playlistSettings = { ...playlistSettings, ...patch }
+    // Same contract as the Host: an absent/undefined/null key keeps the saved
+    // value, so toggling one switch never clears the folder.
+    const next = { ...playlistSettings }
+    for (const key of ['folder', 'speed', 'pictureInPicture', 'history']) {
+      if (patch[key] !== undefined && patch[key] !== null) next[key] = patch[key]
+    }
+    playlistSettings = next
+    // Simulates a Host that lost the folder (older builds spread a missing
+    // `folder` over the saved settings when any unrelated switch was toggled).
+    if (dropPlaylistFolder) playlistSettings = { ...playlistSettings, folder: '' }
     payload = { ok: true, playlist: { ...playlistSettings }, snapshot: playlistSnapshot() }
   } else if (path.includes('/skin/api/playlist-enabled')) {
     playlistEnabled = JSON.parse(options?.body ?? '{}').enabled === true
@@ -703,6 +714,25 @@ console.log('picture-in-picture')
   const pipElement = () => document.body.children.flatMap((child) => child.children ?? []).find((child) => child.tagName === 'VIDEO' && child.isConnected)
   check('the switch removes disablePictureInPicture', pipElement()?.getAttribute('disablepictureinpicture') === null, String(pipElement()?.getAttribute('disablepictureinpicture')))
   check('no stale picture-in-picture error is reported', runtime.getPlaylistState().pictureInPictureError === null, String(runtime.getPlaylistState().pictureInPictureError))
+  // Toggling one preference must leave the folder alone: this used to wipe it,
+  // because the request carries `folder: undefined` for every other switch.
+  check('toggling picture-in-picture keeps the folder', runtime.getPlaylistState().folder === playlistDir, JSON.stringify(runtime.getPlaylistState().folder))
+  check('toggling picture-in-picture keeps the clip list', runtime.getPlaylistState().count > 0, String(runtime.getPlaylistState().count))
+
+  // A Host that answers with an empty folder for an unrelated request must not
+  // blank the path on screen (this is how the shipped build lost it).
+  const keepFolder = playlistSettings.folder
+  dropPlaylistFolder = true
+  await runtime.updatePlaylistSettings({ speed: 1.25 })
+  dropPlaylistFolder = false
+  check('an empty folder in an unrelated response is ignored', runtime.getPlaylistState().folder === keepFolder, JSON.stringify(runtime.getPlaylistState().folder))
+  playlistSettings = { ...playlistSettings, folder: keepFolder }
+
+  // …while an explicit clear from this page still goes through.
+  await runtime.updatePlaylistSettings({ folder: '' })
+  check('an explicit clear does empty the folder', runtime.getPlaylistState().folder === '', JSON.stringify(runtime.getPlaylistState().folder))
+  await runtime.chooseFolder(playlistDir)
+  check('choosing a folder afterwards restores it', runtime.getPlaylistState().folder === playlistDir, JSON.stringify(runtime.getPlaylistState().folder))
 
   // A paused background must still be able to pop out: the switch is the user
   // gesture, and the browser starts playing in the floating window.
