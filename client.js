@@ -1013,8 +1013,10 @@ let videoSettings = { autoplay: true, muted: true }
         element.preload = 'auto'
         element.setAttribute('playsinline', '')
         // The native controls would sit on top of the UI and pause/seek the
-        // wallpaper; picture-in-picture is enabled separately, by switch.
-        element.setAttribute('disablepictureinpicture', '')
+        // wallpaper. Picture-in-picture is *not* disabled here: it is opted into
+        // by the settings switch, and `disablepictureinpicture` makes
+        // `requestPictureInPicture` throw outright, so the attribute is only
+        // present while the switch is off (see `syncPictureInPictureAttribute`).
         element.setAttribute('disableremoteplayback', '')
         element.setAttribute('aria-hidden', 'true')
         element.setAttribute('data-source', source.kind)
@@ -1347,6 +1349,7 @@ let videoSettings = { autoplay: true, muted: true }
       }
 
       function applyPictureInPicturePreference({ userGesture = false } = {}) {
+        syncPictureInPictureAttribute()
         if (playlist.settings.pictureInPicture !== true) {
           exitPictureInPicture()
           return
@@ -1358,10 +1361,33 @@ let videoSettings = { autoplay: true, muted: true }
         if (video.element) enterPictureInPicture({ userGesture })
       }
 
+      /**
+       * Mirror the switch onto the element's `disablePictureInPicture`.
+       *
+       * Chromium throws `"disablePictureInPicture" attribute is present` from
+       * `requestPictureInPicture`, and the attribute is an *attribute* — the
+       * property setter does not clear it — so the element starts without it and
+       * only carries it while the switch is off (which also removes the browser's
+       * own "picture-in-picture" item from the video's context menu).
+       */
+      function syncPictureInPictureAttribute() {
+        const element = video.element
+        if (!element) return
+        try {
+          if (playlist.settings.pictureInPicture === true) element.removeAttribute('disablepictureinpicture')
+          else element.setAttribute('disablepictureinpicture', '')
+        } catch {
+          /* already detached */
+        }
+      }
+
       function enterPictureInPicture({ userGesture = false } = {}) {
         if (playlist.settings.pictureInPicture !== true) return
         const element = video.element
         if (!element || typeof element.requestPictureInPicture !== 'function') return
+        // The attribute must be gone before the request, even if the switch was
+        // toggled on an element that predates this change.
+        syncPictureInPictureAttribute()
         try {
           if (document.pictureInPictureElement === element) return
           const result = element.requestPictureInPicture()

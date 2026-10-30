@@ -9,6 +9,21 @@
 
 该插件从桌面版自带的那个版本起步，版本号记作 `1.0.1`。
 
+## 1.0.18 — 2026-10-30
+
+**修复：画中画被 `disablePictureInPicture` 属性拒绝**
+
+- 1.0.17 已经会发请求，但视频元素一直带着 `disablepictureinpicture` 属性——
+  那是早期为了「不让原生控件压住界面」加的。Chromium 只要看到这个属性就直接抛
+  `Failed to execute 'requestPictureInPicture': "disablePictureInPicture" attribute is present`，
+  所以浮窗永远打不开。
+- 现在属性跟随开关：**开**时移除，**关**时加回（同时把浏览器自带的画中画菜单项也关掉）。
+  元素创建时不再无条件加这个属性。
+- 修复前必须注意的一点：`disablePictureInPicture` 是**属性**，设置 `.disablePictureInPicture = false`
+  并不会清掉它，只能用 `removeAttribute`——这也是上一版只改请求条件却没生效的原因。
+- 测试桩现在按 Chromium 语义在属性存在时直接拒绝请求，并断言「请求没有被浏览器拒绝」
+  （而不只是「发出了请求」）；用旧代码重跑会红 5 项，与线上现象一致。
+
 ## 1.0.17 — 2026-10-30
 
 **修复：打开「小窗口播放」后没有出现小窗口**

@@ -36,6 +36,9 @@ function matchesSelector(element, selector) {
 
 let pictureInPictureEnabled = true
 const pipRequests = []
+// Settled outcome of every request, so a check can distinguish "asked the
+// browser" from "the browser actually opened a window".
+const pipResults = []
 
 function createElement(tagName) {
   const listeners = new Map()
@@ -105,10 +108,24 @@ function createElement(tagName) {
     // the real ones so a swallowed rejection is exercised too.
     requestPictureInPicture() {
       pipRequests.push(this)
-      if (!pictureInPictureEnabled) return Promise.reject(new DOMException('disabled', 'NotSupportedError'))
+      // Chromium refuses outright while the attribute is present; reproduce it so
+      // a regression that re-adds the attribute fails here instead of on screen.
+      if (this.getAttribute('disablepictureinpicture') !== null) {
+        const failure = Promise.reject(new Error('"disablePictureInPicture" attribute is present.'))
+        failure.catch(() => {})
+        pipResults.push('rejected')
+        return failure
+      }
+      if (!pictureInPictureEnabled) {
+        const failure = Promise.reject(new DOMException('disabled', 'NotSupportedError'))
+        failure.catch(() => {})
+        pipResults.push('rejected')
+        return failure
+      }
       this.ownerDocument.pictureInPictureElement = this
       this.paused = false
       this.emit('play')
+      pipResults.push('opened')
       return Promise.resolve({})
     },
     load() {},
@@ -675,20 +692,28 @@ console.log('picture-in-picture')
   // for a picture-in-picture window, so nothing appeared. Turning it on has to
   // request one itself.
   pipRequests.length = 0
+  pipResults.length = 0
   document.pictureInPictureElement = null
-  await runtime.updatePlaylistSettings({ pictureInPicture: true })
+  await runtime.updatePlaylistSettings({ pictureInPicture: true }, { userGesture: true })
   check('turning the switch on requests picture-in-picture', pipRequests.length > 0, String(pipRequests.length))
+  check('the request is not refused by the browser', pipResults.at(-1) === 'opened', JSON.stringify(pipResults))
   check('a picture-in-picture window is now open', document.pictureInPictureElement !== null)
+  // Chromium throws while `disablePictureInPicture` is present, so the on state
+  // must have removed it from the element.
+  const pipElement = () => document.body.children.flatMap((child) => child.children ?? []).find((child) => child.tagName === 'VIDEO' && child.isConnected)
+  check('the switch removes disablePictureInPicture', pipElement()?.getAttribute('disablepictureinpicture') === null, String(pipElement()?.getAttribute('disablepictureinpicture')))
+  check('no stale picture-in-picture error is reported', runtime.getPlaylistState().pictureInPictureError === null, String(runtime.getPlaylistState().pictureInPictureError))
 
   // A paused background must still be able to pop out: the switch is the user
   // gesture, and the browser starts playing in the floating window.
-  await runtime.updatePlaylistSettings({ pictureInPicture: false })
+  await runtime.updatePlaylistSettings({ pictureInPicture: false }, { userGesture: true })
   check('turning it off closes the window', document.pictureInPictureElement === null)
   runtime.toggleVideo()
   check('the clip is paused before the request', runtime.getPlaylistState().playing === false)
   pipRequests.length = 0
-  await runtime.updatePlaylistSettings({ pictureInPicture: true })
-  check('a paused clip still pops out', pipRequests.length > 0 && document.pictureInPictureElement !== null)
+  pipResults.length = 0
+  await runtime.updatePlaylistSettings({ pictureInPicture: true }, { userGesture: true })
+  check('a paused clip still pops out', pipRequests.length > 0 && document.pictureInPictureElement !== null, JSON.stringify(pipResults))
 
   // Browser without support: the switch reports unavailable and never throws.
   await runtime.updatePlaylistSettings({ pictureInPicture: false })
