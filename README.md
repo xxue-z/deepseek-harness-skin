@@ -13,7 +13,7 @@
 
 | 蜡笔小新-春游（自带 · 动态） | DeepSeek-鲸鱼娘（自带 · 静态） |
 |---|---|
-| ![蜡笔小新-春游](docs/images/crayon-shinchan.png) | ![DeepSeek-鲸鱼娘](docs/images/deepseek-whale.png) |
+| ![蜡笔小新-春游](assets/preview-crayon.gif) | ![DeepSeek-鲸鱼娘](docs/images/deepseek-whale.png) |
 
 ![主题皮肤设置页](docs/images/deepseek-whale-settings.png)
 
