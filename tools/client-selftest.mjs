@@ -446,6 +446,7 @@ const themeService = {
 
 const slotRegistrations = []
 const injectedSlots = []
+const injectedDeps = []
 const ctx = {
   get: (name) =>
     ({
@@ -456,6 +457,12 @@ const ctx = {
   on: () => () => {},
   effect: (callback) => {
     callback()
+    return () => {}
+  },
+  inject(deps, callback) {
+    injectedDeps.push(deps.join(','))
+    // Cordis runs the callback immediately when the service is already there.
+    if (deps.every((dep) => ctx.get(dep) !== undefined)) callback(ctx)
     return () => {}
   },
   slots: {
@@ -1188,6 +1195,112 @@ console.log('version badge and update sheet')
       check('a fresh download starts at 0%', zero.percent === 0, JSON.stringify(zero))
     }
   }
+}
+
+/* ------------------------------------------------------- boot order regression */
+// ui-theme provides `theme` only after the settings mirror resolves behind the
+// remote connection, while the skin's snapshot is one local request: a cold
+// start can apply the skin before the service exists. The skin must attach
+// itself the moment the service appears, otherwise a restart leaves it
+// half-applied until the user picks it again in the settings panel.
+console.log('boot order: the theme service arrives after the first snapshot')
+{
+  activeId = 'skin.test'
+  const wallpaperTags = () => styleTags.filter((tag) => tag.getAttribute('data-plugin-css') === 'skin').length
+  const before = wallpaperTags()
+
+  let lateModule = null
+  globalThis.__ModuleLoader__ = {
+    load(definition) {
+      lateModule = definition.factory((name) => {
+        if (name === 'react') return ReactStub
+        throw new Error(`unknown module ${name}`)
+      })
+    },
+  }
+  // eslint-disable-next-line no-new-func
+  new Function('window', 'document', 'fetch', 'React', source)(globalThis, globalThis.document, globalThis.fetch, ReactStub)
+
+  const late = { register: [], setTheme: [], override: [], inject: [], handlers: [] }
+  const makeService = (tag) => ({
+    register(definition) {
+      late.register.push(definition)
+      return () => {}
+    },
+    setTheme(id) {
+      late.setTheme.push(tag ? `${tag}:${id}` : id)
+    },
+    overrideTokens(source, tokens) {
+      late.override.push({ source, tokens })
+      return () => {}
+    },
+    getTheme() {
+      return { preference: 'system', active: { id: 'x' }, themes: [], fontSizes: {}, fontFamilies: {}, revision: 1 }
+    },
+  })
+  const firstService = makeService('')
+  const replacementService = makeService('replacement')
+
+  let provided = null
+  const waiting = []
+  const lateCtx = {
+    get: (name) =>
+      name === 'theme'
+        ? provided ?? undefined
+        : { locale: { getLocale: () => ({ active: 'zh-CN' }), subscribe: () => () => {} }, slots: null }[name],
+    on(event, handler) {
+      if (event === 'theme/change') late.handlers.push(handler)
+      return () => {}
+    },
+    effect(callback) {
+      callback()
+      return () => {}
+    },
+    inject(deps, callback) {
+      late.inject.push(deps.join(','))
+      if (deps.every((dep) => lateCtx.get(dep) !== undefined)) {
+        callback(lateCtx)
+        return () => {}
+      }
+      // Only `theme` is driven here; the optional dependencies (shortcuts,
+      // locale) stay unresolved, exactly like a Host that lacks them.
+      if (deps.length === 1 && deps[0] === 'theme') waiting.push(callback)
+      return () => {}
+    },
+    slots: {
+      inject(key, callback) {
+        callback()
+        return () => {}
+      },
+      register() {
+        return () => {}
+      },
+    },
+  }
+
+  lateModule.apply(lateCtx)
+  await flush()
+  check('takes the theme service as an injected dependency', late.inject.includes('theme'), late.inject.join(','))
+  check('paints the wallpaper before the service exists', wallpaperTags() === before + 1, `${before} -> ${wallpaperTags()}`)
+  check('does not claim the skin is on a missing service', late.setTheme.length === 0, JSON.stringify(late.setTheme))
+
+  provided = firstService
+  for (const callback of waiting.splice(0)) callback()
+  await flush()
+  check('applies the skin as soon as the service appears', late.setTheme.includes('skin.test'), JSON.stringify(late.setTheme))
+  check(
+    'installs the alpha layer with it',
+    late.override.length === 1 && late.override[0].source === '@xxue-z/dsh-skin',
+    JSON.stringify(late.override.map((entry) => entry.source)),
+  )
+
+  // ui-theme reloaded and provided a different instance: the next publish has
+  // to move the skin onto it instead of trusting the remembered id.
+  const applied = late.setTheme.length
+  provided = replacementService
+  for (const handler of late.handlers) handler({ preference: 'system' })
+  await flush()
+  check('moves the skin onto a replacement service', late.setTheme.slice(applied).includes('replacement:skin.test'), JSON.stringify(late.setTheme))
 }
 
 console.log(failures === 0 ? '\nall client checks passed' : `\n${failures} client check(s) failed`)

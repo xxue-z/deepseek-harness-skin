@@ -766,8 +766,19 @@ window.__ModuleLoader__.load({
       let overrideDisposer = null
       let styleElement = null
       let appliedId = null
+      /**
+       * The theme service instance `appliedId` was applied to.
+       *
+       * ui-theme provides `theme` only after the settings mirror resolves
+       * behind the remote connection, so on a cold start the service can be
+       * missing (or replaced by a later activation) when the first snapshot
+       * lands. The applied id alone cannot tell a live skin from a skipped
+       * one, so remember the instance as well.
+       */
+      let appliedService = null
       let lastBuiltIn = 'system'
       let loadError = null
+      let disposed = false
 
       const theme = () => ctx.get('theme')
 
@@ -1830,6 +1841,7 @@ let videoSettings = { autoplay: true, muted: true }
         writeWallpaper(null)
         destroyVideo()
         appliedId = null
+        appliedService = null
         const service = theme()
         if (restoreTheme && service?.setTheme) {
           mutating = true
@@ -1866,6 +1878,7 @@ let videoSettings = { autoplay: true, muted: true }
             overrideDisposer = service.overrideTokens(PLUGIN_ID, alphaTokens(skin, skin.transparencyOverridden ? skin.transparency : NaN))
           }
           appliedId = skin.id
+          appliedService = service ?? null
           // A different theme restarts the playback policy: a manual pause does
           // not leak into the next skin, and a manual start does not either.
           // Switching themes keeps the playlist position — that clip is not the
@@ -1934,6 +1947,49 @@ let videoSettings = { autoplay: true, muted: true }
         emit()
       }
 
+      /**
+       * Re-assert the active skin on the live theme service.
+       *
+       * Every one-shot path into `applySkin` can lose the race with ui-theme:
+       * the snapshot is one local request, while `theme` waits for the
+       * settings mirror behind the WebSocket. When that happens `applySkin`
+       * paints the wallpaper but skips the tokens, and nothing re-runs — the
+       * skin stays half-applied until the user re-applies it by hand. This is
+       * the repair path: it applies only when the snapshot names a skin that
+       * is not on the service that is live right now.
+       */
+      function ensureApplied() {
+        if (!snapshot?.activeId) return false
+        const active = snapshot.themes?.find((entry) => entry.id === snapshot.activeId)
+        if (!active) return false
+        const service = theme()
+        if (!service) return false
+        if (appliedId === active.id && appliedService === service) return false
+        applySkin(active)
+        return true
+      }
+
+      /** Bounded late-service probes, cancelled with the runtime. */
+      let probeTimers = []
+      function probeThemeService(delays = [250, 750, 2000, 4000]) {
+        for (const timer of probeTimers.splice(0)) clearTimeout(timer)
+        for (const delay of delays) {
+          probeTimers.push(
+            setTimeout(() => {
+              if (disposed) return
+              try {
+                ensureApplied()
+              } catch (error) {
+                console.error('[dsh-skin] 主题服务就绪后应用皮肤失败', error)
+              }
+            }, delay),
+          )
+        }
+      }
+      function cancelProbes() {
+        for (const timer of probeTimers.splice(0)) clearTimeout(timer)
+      }
+
       /** Live preview while dragging the transparency slider. */
       function previewTransparency(id, value) {
         if (!snapshot) return
@@ -1969,6 +2025,9 @@ let videoSettings = { autoplay: true, muted: true }
           ready = true
           readyAt = Date.now()
           applySnapshot(payload.snapshot)
+          // `theme` may still be on its way; keep looking for it briefly rather
+          // than leaving a wallpaper-only skin behind.
+          probeThemeService()
           return payload.snapshot
         } catch (error) {
           loadError = error instanceof Error ? error.message : String(error)
@@ -2045,6 +2104,8 @@ let videoSettings = { autoplay: true, muted: true }
         }
         return () => {
           cancelled = true
+          disposed = true
+          cancelProbes()
           disposeShortcut()
           try {
             if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') window.removeEventListener('pagehide', onHide)
@@ -2069,17 +2130,27 @@ let videoSettings = { autoplay: true, muted: true }
         }
       }
 
-      // Re-apply the skin whenever an outsider writes a built-in preference
-      // over the active skin id. Agent-preset switches, model changes that
-      // reload the session, profile reloads, and the Settings -> Appearance
-      // picker all funnel through setTheme(light|dark|system). We want the
-      // skin to stay unless the user chooses "Close" from the skin manager,
-      // so we repair instead of deactivating. To let a genuine built-in
-      // choice through, click "Close" first.
+      // Two jobs, both about the theme service living in another plugin:
+      // (a) attach the active skin to the service once it exists, and
+      // (b) keep it there when an outsider writes a built-in preference over
+      // the active skin id. Agent-preset switches, model changes that reload
+      // the session, profile reloads, and the Settings -> Appearance picker
+      // all funnel through setTheme(light|dark|system). We want the skin to
+      // stay unless the user chooses "Close" from the skin manager, so we
+      // repair instead of deactivating. To let a genuine built-in choice
+      // through, click "Close" first.
       let repairTimer = null
       function watchThemeChanges() {
         return ctx.on('theme/change', (next) => {
-          if (mutating || !ready || !snapshot?.activeId) return
+          if (mutating) return
+          // The first publish of a cold start can also be the moment ui-theme
+          // finally arrives: whatever ran earlier may have found no service.
+          // Re-assert on the live instance before the warm-up window judges it.
+          if (ready && snapshot?.activeId && theme() !== appliedService) {
+            ensureApplied()
+            return
+          }
+          if (!ready || !snapshot?.activeId) return
           if (Date.now() - readyAt < 4000) return
           if (next?.preference === snapshot.activeId) return
           if (['light', 'dark', 'system'].includes(next?.preference)) {
@@ -2104,6 +2175,7 @@ let videoSettings = { autoplay: true, muted: true }
         getError: () => loadError,
         isReady: () => ready,
         applySnapshot,
+        ensureApplied,
         previewTransparency,
         replaceSkin,
         watchThemeChanges,
@@ -3974,6 +4046,24 @@ let videoSettings = { autoplay: true, muted: true }
       __progress: { toProgress, formatMegabytes },
       apply(ctx) {
         const runtime = createRuntime(ctx)
+        // ui-theme provides `theme` late (it waits for the settings mirror) and
+        // publishes nothing when the durable preference already matches what
+        // the runtime bootstrapped from the boot script, so a cold start can
+        // miss the service with no event to notice it later. This is the
+        // notice: the callback runs the moment the service exists.
+        if (typeof ctx.inject === 'function') {
+          try {
+            ctx.inject(['theme'], () => {
+              try {
+                runtime.ensureApplied()
+              } catch (error) {
+                console.error('[dsh-skin] 主题服务就绪后应用皮肤失败', error)
+              }
+            })
+          } catch (error) {
+            console.error('[dsh-skin] 等待主题服务失败', error)
+          }
+        }
         ctx.effect(() => runtime.start())
         ctx.effect(() => runtime.watchThemeChanges())
         ctx.effect(() => {
