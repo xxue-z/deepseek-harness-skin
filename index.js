@@ -12,6 +12,7 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gunzipSync } from 'node:zlib'
 import { createSkinHandler } from './lib/api.js'
+import { createArchiveAdmin } from './lib/archive-admin.js'
 import { seedBundledThemes } from './lib/bundled.js'
 import { defaultCodexDirs, SkinService } from './lib/service.js'
 import { SkinStore } from './lib/store.js'
@@ -233,7 +234,14 @@ export function apply(ctx, config) {
     meta,
   })
 
-  const handler = createSkinHandler(service, { store, log, meta })
+  // 工作区与归档管理：路由只是外壳，真正的读写落在注册表实体与会话目录上。
+  // 服务按需解析（`ctx.get`），因此这里不需要把 workspaceRegistry 声明进
+  // inject —— 面板总是在启动完成后才被打开，解析不到时路由会给出人话。
+  // `dataDir` 用来记工作区的旧目录：改过工作目录之后，旧目录的会话在 DSH 里
+  // 归「未分组」，这份记录让面板仍能把它们挂回原来的工作区。
+  const admin = createArchiveAdmin({ ctx, log, dataDir: options.dataDir })
+
+  const handler = createSkinHandler(service, { store, log, meta, admin })
 
   // Fold the playlist position into state.json on the way out, so a quit that
   // lands between two client reports still resumes on the right clip. The

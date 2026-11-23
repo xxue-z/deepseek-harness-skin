@@ -206,6 +206,74 @@ window.__ModuleLoader__.load({
         'notice.playlistOff': '视频列表已关闭',
         'notice.playlistEmpty': '文件夹里没有视频文件',
         'notice.playlistFailed': '无法读取这个文件夹',
+        /* ---- 工作区与归档管理 ---- */
+        'admin.panel': '工作区与归档',
+        'admin.title': '工作区与归档',
+        'admin.subtitle': '改工作区的名称与工作目录；已归档会话按工作区分组管理。',
+        'admin.tab.workspaces': '工作区',
+        'admin.tab.archived': '已归档',
+        'admin.refresh': '刷新',
+        'admin.refreshing': '正在刷新…',
+        'admin.loading': '正在读取…',
+        'admin.loadFailed': '读取失败：{message}',
+        'admin.retry': '重试',
+        'admin.empty.workspaces': '还没有工作区',
+        'admin.empty.workspacesHint': '在侧栏的工作区列表里添加一个目录，它会出现在这里。',
+        'admin.empty.archived': '没有已归档的会话',
+        'admin.empty.archivedHint': '归档会话后，它会带着磁盘占用出现在这里，可以恢复或永久删除。',
+        'admin.noMatch': '没有匹配的会话',
+        'admin.search': '搜索标题、目录或会话 id',
+        'admin.clearSearch': '清除搜索',
+        'admin.selectAll': '全选',
+        'admin.clearSelection': '取消选择',
+        'admin.selected': '已选 {n} 个',
+        'admin.restore': '取消归档',
+        'admin.restoreSelected': '恢复所选',
+        'admin.delete': '永久删除',
+        'admin.deleteSelected': '删除所选',
+        'admin.group.ungrouped': '未分组',
+        'admin.workspace.sessions': '{n} 个会话',
+        'admin.workspace.archived': '{n} 个已归档',
+        'admin.workspace.missing': '目录不存在',
+        'admin.workspace.edit': '编辑',
+        'admin.workspace.editTitle': '编辑工作区',
+        'admin.workspace.name': '名称',
+        'admin.workspace.namePlaceholder': '工作区名称',
+        'admin.workspace.path': '工作目录',
+        'admin.workspace.pathNow': '当前：{path}',
+        'admin.workspace.browse': '浏览…',
+        'admin.workspace.pickFailed': '选择目录失败：{message}',
+        'admin.workspace.hint': '改目录后，工作目录不在新路径下的已有会话会从侧栏的该项目脱离（落到「未分组」），但仍会以「旧目录」的形式留在本面板的这个工作区下。',
+        'admin.workspace.save': '保存',
+        'admin.workspace.saving': '保存中…',
+        'admin.workspace.saved': '已保存',
+        'admin.workspace.unchanged': '没有改动',
+        'admin.workspace.detached': '{n} 个会话转为旧目录',
+        'admin.workspace.previous': '{n} 个旧目录',
+        'admin.workspace.previousTitle': '旧目录：{list}',
+        'admin.row.running': '运行中',
+        'admin.row.agent': 'agent 持有',
+        'admin.row.missing': '磁盘无日志',
+        'admin.row.previousPath': '旧目录',
+        'admin.row.children': '{n} 个子会话',
+        'admin.row.restore': '恢复',
+        'admin.row.delete': '删除',
+        'admin.row.purge': '清理登记',
+        'admin.size': '{size}',
+        'admin.files': '{n} 个文件',
+        'admin.confirm.title': '永久删除 {n} 个会话',
+        'admin.confirm.titleOne': '永久删除这个会话',
+        'admin.confirm.body': '将删除会话日志目录、投影缓存与归档记录；附件是内容寻址的，会被保留。此操作不可撤销。',
+        'admin.confirm.cancel': '取消',
+        'admin.confirm.ok': '永久删除',
+        'admin.done.restored': '已取消归档 {n} 个',
+        'admin.done.deleted': '已永久删除 {n} 个',
+        'admin.refused.live': '{n} 个仍在运行，已跳过',
+        'admin.refused.active': '{n} 个仍有活动，已跳过',
+        'admin.failed': '{n} 个失败',
+        'admin.hideArchived': '从侧栏隐藏已归档会话',
+        'admin.hideArchivedHint': '与已归档插件一致：归档后的行不再出现在工作区列表里，只能在这里管理。',
+        'admin.footnote': '删除只对当前处于归档状态的会话生效；正在运行或被 agent 持有的会话会被拒绝。',
       },
       en: {
         'section.title': 'Theme Skins',
@@ -388,6 +456,74 @@ window.__ModuleLoader__.load({
         'notice.playlistOff': 'Video list off',
         'notice.playlistEmpty': 'No video files in that folder',
         'notice.playlistFailed': 'Cannot read that folder',
+        /* ---- workspaces & archive ---- */
+        'admin.panel': 'Workspaces & archive',
+        'admin.title': 'Workspaces & archive',
+        'admin.subtitle': 'Rename workspaces and change their working directory; manage archived sessions grouped by workspace.',
+        'admin.tab.workspaces': 'Workspaces',
+        'admin.tab.archived': 'Archived',
+        'admin.refresh': 'Refresh',
+        'admin.refreshing': 'Refreshing…',
+        'admin.loading': 'Loading…',
+        'admin.loadFailed': 'Cannot load: {message}',
+        'admin.retry': 'Retry',
+        'admin.empty.workspaces': 'No workspaces yet',
+        'admin.empty.workspacesHint': 'Add a folder in the sidebar workspace list and it shows up here.',
+        'admin.empty.archived': 'Nothing is archived',
+        'admin.empty.archivedHint': 'Archive a session and it appears here with its disk usage, ready to restore or erase.',
+        'admin.noMatch': 'No matching sessions',
+        'admin.search': 'Search title, directory, or session id',
+        'admin.clearSearch': 'Clear search',
+        'admin.selectAll': 'Select all',
+        'admin.clearSelection': 'Clear selection',
+        'admin.selected': '{n} selected',
+        'admin.restore': 'Unarchive',
+        'admin.restoreSelected': 'Restore selected',
+        'admin.delete': 'Delete permanently',
+        'admin.deleteSelected': 'Delete selected',
+        'admin.group.ungrouped': 'Ungrouped',
+        'admin.workspace.sessions': '{n} sessions',
+        'admin.workspace.archived': '{n} archived',
+        'admin.workspace.missing': 'Directory missing',
+        'admin.workspace.edit': 'Edit',
+        'admin.workspace.editTitle': 'Edit workspace',
+        'admin.workspace.name': 'Name',
+        'admin.workspace.namePlaceholder': 'Workspace name',
+        'admin.workspace.path': 'Working directory',
+        'admin.workspace.pathNow': 'Now: {path}',
+        'admin.workspace.browse': 'Browse…',
+        'admin.workspace.pickFailed': 'Cannot pick a directory: {message}',
+        'admin.workspace.hint': 'After the change, sessions whose working directory is not the new path leave this project in the sidebar (they fall under Ungrouped), but this panel keeps them here as "old path".',
+        'admin.workspace.save': 'Save',
+        'admin.workspace.saving': 'Saving…',
+        'admin.workspace.saved': 'Saved',
+        'admin.workspace.unchanged': 'Nothing changed',
+        'admin.workspace.detached': '{n} sessions became old-path sessions',
+        'admin.workspace.previous': '{n} old paths',
+        'admin.workspace.previousTitle': 'Old paths: {list}',
+        'admin.row.running': 'Running',
+        'admin.row.agent': 'Held by an agent',
+        'admin.row.missing': 'No log on disk',
+        'admin.row.previousPath': 'Old path',
+        'admin.row.children': '{n} child sessions',
+        'admin.row.restore': 'Restore',
+        'admin.row.delete': 'Delete',
+        'admin.row.purge': 'Drop bookkeeping',
+        'admin.size': '{size}',
+        'admin.files': '{n} files',
+        'admin.confirm.title': 'Delete {n} sessions permanently',
+        'admin.confirm.titleOne': 'Delete this session permanently',
+        'admin.confirm.body': 'Removes the session log directory, the projection cache, and the archive record. Attachments are content-addressed and kept. This cannot be undone.',
+        'admin.confirm.cancel': 'Cancel',
+        'admin.confirm.ok': 'Delete permanently',
+        'admin.done.restored': 'Unarchived {n}',
+        'admin.done.deleted': 'Deleted {n} permanently',
+        'admin.refused.live': '{n} still running — skipped',
+        'admin.refused.active': '{n} still active — skipped',
+        'admin.failed': '{n} failed',
+        'admin.hideArchived': 'Hide archived sessions in the sidebar',
+        'admin.hideArchivedHint': 'Same as the archive-purge plugin: an archived row no longer appears in the workspace list, so it is managed here.',
+        'admin.footnote': 'Deletion only applies to sessions that are archived right now; a session that is running or held by an agent is refused.',
       },
     }
 
@@ -750,6 +886,13 @@ window.__ModuleLoader__.load({
       design: (input) => request('design', { method: 'POST', body: JSON.stringify(input) }),
       models: () => request('models'),
       exportTheme: (id) => request('export', { method: 'POST', body: JSON.stringify({ id }) }),
+      /* 工作区与归档：读一次清单，再分别改工作区 / 恢复 / 永久删除。 */
+      adminInventory: () => request('admin-inventory'),
+      updateWorkspace: (patch) => request('workspace-update', { method: 'POST', body: JSON.stringify(patch ?? {}) }),
+      restoreArchived: (ids) => request('archive-unarchive', { method: 'POST', body: JSON.stringify({ ids }) }),
+      deleteArchived: (ids) => request('archive-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
+      pickWorkspaceDirectory: (initial) =>
+        request('pick-directory', { method: 'POST', body: JSON.stringify({ initial: initial ?? '', description: '选择工作目录' }) }),
     }
 
     /* ------------------------------------------------------------------ */
@@ -2240,6 +2383,10 @@ let videoSettings = { autoplay: true, muted: true }
       pause: 'M9 5v14M15 5v14',
       chevron: 'M8 10l4 4 4-4',
       edit: 'M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3zM14.5 7.5l3 3',
+      search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20.5 20.5 16 16',
+      archive: 'M3 4h18v4H3zM5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4',
+      restore: 'M4 10a8 8 0 1 1 2.4 5.7M4 4v6h6',
+      alert: 'M12 4 3 20h18zM12 10v4m0 3h.01',
     }
 
     function Icon({ name, size = 16 }) {
@@ -4028,7 +4175,978 @@ let videoSettings = { autoplay: true, muted: true }
 .dsks-keycaps{display:inline-flex;align-items:center;gap:4px;flex:none}
 .dsks-keycap{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:24px;padding:0 7px;border-radius:7px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);font:inherit;font-size:11px;color:var(--dsw-alias-label-secondary)}
 .dsks-keycap-plus{border:none;background:transparent;color:var(--dsw-alias-label-tertiary);font-size:11px}
+/* 工作区与归档面板 */
+.dsks-admin{display:flex;flex-direction:column;gap:12px;height:100%;min-height:0;box-sizing:border-box;padding:16px 18px}
+.dsks-admin-head{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.dsks-admin-head-text{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.dsks-admin-title{font-size:15px;font-weight:600;line-height:22px;color:var(--dsw-alias-label-primary)}
+.dsks-admin-sub{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary)}
+.dsks-admin-tabs{display:inline-flex;align-self:flex-start;gap:4px;padding:3px;border-radius:10px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1)}
+.dsks-admin-tab{border:none;background:transparent;padding:4px 12px;border-radius:7px;font:inherit;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);cursor:pointer}
+.dsks-admin-tab[data-active]{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
+.dsks-admin-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dsks-admin-search{display:flex;align-items:center;gap:6px;flex:1 1 240px;min-width:0;height:30px;padding:0 8px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-tertiary)}
+.dsks-admin-search input{flex:1;min-width:0;border:none;background:transparent;font:inherit;font-size:12px;color:var(--dsw-alias-label-primary);outline:none}
+.dsks-admin-search button{display:inline-flex;border:none;background:transparent;color:inherit;cursor:pointer;padding:0}
+.dsks-admin-body{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0;overflow:auto;padding-right:2px}
+.dsks-admin-group{display:flex;flex-direction:column;gap:2px;padding:6px 6px 8px;border-radius:11px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1)}
+.dsks-admin-group-head{display:flex;align-items:center;gap:8px;min-width:0;padding:4px 6px}
+.dsks-admin-group-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsks-admin-group-path{flex:1;min-width:0;font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
+.dsks-admin-count{flex:none;font-size:11px;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums}
+.dsks-admin-row{display:flex;align-items:center;gap:8px;min-width:0;padding:6px 8px;border-radius:8px}
+.dsks-admin-row:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2))}
+.dsks-admin-row-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.dsks-admin-row-title{font-size:13px;line-height:19px;color:var(--dsw-alias-label-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dsks-admin-row-meta{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
+.dsks-admin-row-side{display:flex;align-items:center;gap:10px;flex:none}
+.dsks-admin-children{display:flex;flex-direction:column;gap:2px;margin:0 0 2px 14px;padding-left:8px;border-left:1px solid var(--dsw-alias-border-l1)}
+.dsks-admin-nested{padding:4px 8px}
+.dsks-admin-nested .dsks-admin-row-title{font-size:12px;line-height:17px;color:var(--dsw-alias-label-secondary)}
+.dsks-admin-nested .dsks-admin-row-meta{font-size:10px;line-height:15px}
+.dsks-admin-nested svg{color:var(--dsw-alias-label-tertiary)}
+.dsks-admin-size{font-size:11px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
+.dsks-admin-badges{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap}
+.dsks-admin-badge{font-size:10px;line-height:16px;padding:0 6px;border-radius:999px;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-tertiary);white-space:nowrap}
+.dsks-admin-badge[data-kind=live]{color:var(--dsw-alias-state-business-primary);border-color:currentColor}
+.dsks-admin-badge[data-kind=missing]{color:#d99a2b;border-color:currentColor}
+.dsks-admin-badge[data-kind=stale]{color:var(--dsw-alias-label-tertiary);border-style:dashed}
+.dsks-admin-check{flex:none;width:14px;height:14px;margin:0;accent-color:var(--dsw-alias-brand-primary);cursor:pointer}
+.dsks-admin-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:44px 16px;text-align:center;font-size:12px;color:var(--dsw-alias-label-tertiary)}
+.dsks-admin-empty-title{font-size:13px;color:var(--dsw-alias-label-secondary)}
+.dsks-admin-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-top:1px solid var(--dsw-alias-border-l1);padding-top:10px}
+.dsks-admin-foot .dsks-switch{flex:0 1 320px;border-bottom:none;padding:0}
+.dsks-admin-foot-text{flex:1;min-width:0;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary)}
+.dsks-admin-field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.dsks-admin-label{font-size:11px;color:var(--dsw-alias-label-secondary)}
+.dsks-admin-input{min-width:0;height:32px;padding:0 10px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);font:inherit;font-size:13px;color:var(--dsw-alias-label-primary);outline:none}
+.dsks-admin-input:focus-visible{border-color:var(--dsw-alias-brand-primary)}
+.dsks-admin-path-row{display:flex;align-items:center;gap:6px}
+.dsks-admin-path-row .dsks-admin-input{flex:1}
+.dsks-admin-hint{font-size:11px;line-height:17px;color:var(--dsw-alias-label-tertiary)}
+.dsks-admin-error{font-size:12px;line-height:18px;color:#d75644}
+.dsks-admin-confirm-list{display:flex;flex-direction:column;gap:2px;margin:8px 0 0;padding:8px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);font-size:12px;color:var(--dsw-alias-label-secondary);max-height:168px;overflow:auto}
+.dsks-admin-confirm-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.dsks-admin-confirm-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 `
+
+    /* ------------------------------------------------------------------ */
+    /* workspaces & archive                                                */
+    /* ------------------------------------------------------------------ */
+
+    /** 侧栏入口与主面板共用的 id：点图标就是打开这个面板。 */
+    const ADMIN_PANEL_ID = 'workspace-admin'
+    /** 「从侧栏隐藏已归档会话」的本地偏好。 */
+    const ADMIN_HIDE_KEY = 'dsh-skin.admin.hideArchived'
+    /** 注入到侧栏行上的按钮 → 本模块对话框的事件名。 */
+    const ADMIN_EDIT_EVENT = 'dsh-skin:workspace-edit'
+    /** 面板开关这个偏好后其它组件也要跟着重画。 */
+    const ADMIN_HIDE_EVENT = 'dsh-skin:hide-archived'
+
+    /**
+     * 人类可读的字节数。
+     * @param {number} bytes
+     * @returns {string}
+     */
+    function formatSize(bytes) {
+      const value = Number.isFinite(bytes) && bytes > 0 ? bytes : 0
+      if (value < 1024) return `${value} B`
+      if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+      if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`
+      return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`
+    }
+
+    /** 读「隐藏已归档」偏好，默认开（与 dsh-archive-purge 的行为一致）。 */
+    function readHideArchived() {
+      try {
+        return localStorage.getItem(ADMIN_HIDE_KEY) !== '0'
+      } catch {
+        return true
+      }
+    }
+
+    /**
+     * 写偏好并通知页内其它副本。
+     * @param {boolean} value
+     */
+    function writeHideArchived(value) {
+      try {
+        localStorage.setItem(ADMIN_HIDE_KEY, value ? '1' : '0')
+      } catch {
+        /* 本地存储不可写时按默认值走 */
+      }
+      try {
+        document.dispatchEvent(new CustomEvent(ADMIN_HIDE_EVENT, { detail: { hidden: value } }))
+      } catch {
+        /* 没有 document 时不用通知谁 */
+      }
+    }
+
+    /**
+     * 订阅一个客户端服务的快照（`<service>.list`）。
+     *
+     * 页面加载顺序不保证服务已经在：拿不到就按 250ms 轮询，最多等 20 秒，
+     * 之后保持 null 让界面显示空态而不是报错。
+     * @param {object} ctx 客户端上下文
+     * @param {string} name 服务名（'sessions' / 'workspaces'）
+     * @returns {object | null} 服务快照
+     */
+    function useServiceSnapshot(ctx, name) {
+      const read = useCallback(() => {
+        try {
+          return ctx.get(name)?.list?.getSnapshot?.() ?? null
+        } catch {
+          return null
+        }
+      }, [ctx, name])
+      const [snapshot, setSnapshot] = useState(read)
+      useEffect(() => {
+        let unsubscribe = null
+        let timer = null
+        let attempts = 0
+        const attach = () => {
+          let store = null
+          try {
+            store = ctx.get(name)?.list ?? null
+          } catch {
+            store = null
+          }
+          if (typeof store?.subscribe !== 'function') return false
+          unsubscribe = store.subscribe(() => setSnapshot(read()))
+          setSnapshot(read())
+          return true
+        }
+        if (!attach()) {
+          timer = setInterval(() => {
+            attempts += 1
+            if (attach() || attempts > 80) {
+              clearInterval(timer)
+              timer = null
+            }
+          }, 250)
+        }
+        return () => {
+          if (timer !== null) clearInterval(timer)
+          if (typeof unsubscribe === 'function') unsubscribe()
+        }
+      }, [ctx, name, read])
+      return snapshot
+    }
+
+    /**
+     * 会话在列表里的标题；没有就用 id。
+     * @param {object | null} sessions `sessions` 服务快照
+     * @param {string} id 会话 id
+     * @returns {string}
+     */
+    function sessionTitle(sessions, id) {
+      const entry = sessions?.byId?.[id]
+      const title = entry?.displayTitle
+      return typeof title === 'string' && title.trim() !== '' ? title : id
+    }
+
+    /** 侧栏 `sidebar.panellist` 的图标。 */
+    function AdminPanelIcon({ size }) {
+      return h(Icon, { name: 'archive', size: size ?? 16 })
+    }
+
+    /**
+     * 已归档行按工作区分组：组按标题排序，未归属任何工作区的排最后。
+     *
+     * 分组键用行的 `workspaceId`（Host 按注册表记账算出来的），而不是再按
+     * 路径猜一次——一个 cwd 可能被多个工作区登记，只有记账知道谁真的持有它。
+     * @param {object[]} rows 已归档行
+     * @param {(key: string) => string} t 翻译函数
+     * @returns {Array<{ key: string, title: string, path: string, rows: object[] }>}
+     */
+    function groupArchivedRows(rows, t) {
+      const buckets = new Map()
+      for (const row of rows) {
+        const key = row.workspaceId ?? '__ungrouped__'
+        const bucket = buckets.get(key)
+        if (bucket === undefined) {
+          buckets.set(key, {
+            key,
+            title: row.workspaceTitle ?? t('admin.group.ungrouped'),
+            path: row.workspacePath ?? '',
+            rows: [row],
+          })
+        } else {
+          bucket.rows.push(row)
+        }
+      }
+      const list = [...buckets.values()]
+      list.sort((left, right) => {
+        if (left.key === '__ungrouped__') return 1
+        if (right.key === '__ungrouped__') return -1
+        return String(left.title).localeCompare(String(right.title))
+      })
+      return list
+    }
+
+    /**
+     * 搜索框是否命中一行（标题、目录、会话 id、工作区名）。
+     * @param {object} row 已归档行
+     * @param {string} needle 已小写、已 trim 的关键词
+     * @param {object | null} sessions `sessions` 服务快照
+     * @returns {boolean}
+     */
+    function archivedRowMatches(row, needle, sessions) {
+      if (needle === '') return true
+      const haystack = `${sessionTitle(sessions, row.id)} ${row.cwd ?? ''} ${row.id} ${row.workspaceTitle ?? ''}`.toLowerCase()
+      return haystack.includes(needle)
+    }
+
+    /**
+     * 某个工作区名下的已归档会话，保持入参顺序（工作区页签把它们挂在工作区名下面）。
+     * @param {object[]} rows 已归档行
+     * @param {string} workspaceId 工作区 id
+     * @returns {object[]} 该工作区的行
+     */
+    function archivedForWorkspace(rows, workspaceId) {
+      return (Array.isArray(rows) ? rows : []).filter((row) => row?.workspaceId === workspaceId)
+    }
+
+    /**
+     * 工作区编辑对话框：改名 + 改工作目录。
+     *
+     * 工作目录是这次新增的能力——DSH 自己的重命名只改 title，注册表也没有
+     * 改 path 的接口，所以保存时会 POST 到 Host，由 Host 走实体 `mutate()`。
+     * 目录既能手填，也能用 Host 的系统选择器（浏览器拿不到绝对路径）。
+     */
+    function WorkspaceEditDialog({ t, workspace, onClose, onSaved }) {
+      const [title, setTitle] = useState(() => workspace.title ?? '')
+      const [path, setPath] = useState(() => workspace.path ?? '')
+      const [busy, setBusy] = useState(false)
+      const [picking, setPicking] = useState(false)
+      const [error, setError] = useState(null)
+
+      const browse = async () => {
+        setPicking(true)
+        setError(null)
+        try {
+          const payload = await api.pickWorkspaceDirectory(path)
+          if (typeof payload.path === 'string' && payload.path !== '') setPath(payload.path)
+        } catch (failure) {
+          setError(t('admin.workspace.pickFailed', { message: failure instanceof Error ? failure.message : String(failure) }))
+        } finally {
+          setPicking(false)
+        }
+      }
+
+      const save = async () => {
+        if (busy) return
+        setBusy(true)
+        setError(null)
+        try {
+          const result = await api.updateWorkspace({ workspaceId: workspace.id, title, path })
+          onSaved(result)
+        } catch (failure) {
+          setError(failure instanceof Error ? failure.message : String(failure))
+          setBusy(false)
+        }
+      }
+
+      return h(
+        Dialog,
+        {
+          t,
+          title: t('admin.workspace.editTitle'),
+          description: t('admin.workspace.pathNow', { path: workspace.path ?? '—' }),
+          onClose,
+          width: 520,
+          footer: [
+            h(Button, { key: 'cancel', variant: 'secondary', onClick: onClose }, t('admin.confirm.cancel')),
+            h(Button, { key: 'save', variant: 'primary', onClick: save, busy, disabled: busy || picking }, t('admin.workspace.save')),
+          ],
+        },
+        h(
+          'div',
+          { className: 'dsks-admin-field' },
+          h('label', { className: 'dsks-admin-label', htmlFor: 'dsks-admin-name' }, t('admin.workspace.name')),
+          h('input', {
+            id: 'dsks-admin-name',
+            className: 'dsks-admin-input',
+            value: title,
+            placeholder: t('admin.workspace.namePlaceholder'),
+            onChange: (event) => setTitle(event.target.value),
+          }),
+        ),
+        h(
+          'div',
+          { className: 'dsks-admin-field' },
+          h('label', { className: 'dsks-admin-label', htmlFor: 'dsks-admin-path' }, t('admin.workspace.path')),
+          h(
+            'div',
+            { className: 'dsks-admin-path-row' },
+            h('input', {
+              id: 'dsks-admin-path',
+              className: 'dsks-admin-input',
+              value: path,
+              onChange: (event) => setPath(event.target.value),
+              spellCheck: false,
+            }),
+            h(Button, { variant: 'secondary', icon: 'folder', busy: picking, onClick: browse }, t('admin.workspace.browse')),
+          ),
+          h('div', { className: 'dsks-admin-hint' }, t('admin.workspace.hint')),
+        ),
+        error !== null ? h('div', { className: 'dsks-admin-error' }, error) : null,
+      )
+    }
+
+    /**
+     * 永久删除确认框：列清要删的会话与各自占用，再让用户确认。
+     */
+    function DeleteArchivedDialog({ t, rows, sessions, onCancel, onConfirm }) {
+      return h(
+        Dialog,
+        {
+          t,
+          title: rows.length === 1 ? t('admin.confirm.titleOne') : t('admin.confirm.title', { n: rows.length }),
+          description: t('admin.confirm.body'),
+          onClose: onCancel,
+          width: 520,
+          footer: [
+            h(Button, { key: 'cancel', variant: 'secondary', onClick: onCancel }, t('admin.confirm.cancel')),
+            h(Button, { key: 'delete', variant: 'danger', icon: 'trash', onClick: onConfirm }, t('admin.confirm.ok')),
+          ],
+        },
+        h(
+          'div',
+          { className: 'dsks-admin-confirm-list' },
+          rows.slice(0, 6).map((row) =>
+            h(
+              'div',
+              { className: 'dsks-admin-confirm-row', key: row.id },
+              h('span', { className: 'dsks-admin-confirm-name' }, sessionTitle(sessions, row.id)),
+              h('span', { className: 'dsks-admin-size' }, formatSize(row.sizeBytes)),
+            ),
+          ),
+          rows.length > 6 ? h('div', { className: 'dsks-admin-hint' }, `… +${rows.length - 6}`) : null,
+        ),
+      )
+    }
+
+    /**
+     * 工作区与归档面板。
+     *
+     * 两个页签共用一次 Host 读取：`GET /skin/api/admin-inventory` 同时给出
+     * 工作区清单和已归档清单（含磁盘占用、是否还在运行、归属哪个工作区），
+     * 所以切页签不必再打一次磁盘。已归档页签按 `workspaceId` 分组——这正是
+     * 需求里「按工作区分组展示」的落点，未归属任何工作区的会话落到最后。
+     */
+    function AdminPage({ ctx }) {
+      const { t } = useLocale(ctx)
+      const [tab, setTab] = useState('workspaces')
+      const [inventory, setInventory] = useState(null)
+      const [loading, setLoading] = useState(true)
+      const [error, setError] = useState(null)
+      const [notice, setNotice] = useState(null)
+      const [query, setQuery] = useState('')
+      const [selected, setSelected] = useState(() => new Set())
+      const [pendingDelete, setPendingDelete] = useState(null)
+      const [busy, setBusy] = useState(false)
+      const [hidden, setHidden] = useState(readHideArchived)
+      const sessions = useServiceSnapshot(ctx, 'sessions')
+
+      const load = useCallback(async () => {
+        setLoading(true)
+        setError(null)
+        try {
+          setInventory(await api.adminInventory())
+        } catch (failure) {
+          setError(failure instanceof Error ? failure.message : String(failure))
+        } finally {
+          setLoading(false)
+        }
+      }, [])
+
+      useEffect(() => {
+        load()
+      }, [load])
+
+      const workspaces = inventory?.workspaces ?? []
+      const archived = inventory?.archived ?? []
+
+      const visible = useMemo(() => {
+        const needle = query.trim().toLowerCase()
+        return needle === '' ? archived : archived.filter((row) => archivedRowMatches(row, needle, sessions))
+      }, [archived, query, sessions])
+
+      const groups = useMemo(() => groupArchivedRows(visible, t), [visible, t])
+
+      const toggleRow = useCallback((id) => {
+        setSelected((current) => {
+          const next = new Set(current)
+          if (next.has(id)) next.delete(id)
+          else next.add(id)
+          return next
+        })
+      }, [])
+
+      const run = useCallback(
+        async (operation, ids) => {
+          if (ids.length === 0 || busy) return
+          setBusy(true)
+          setNotice(null)
+          try {
+            const payload = operation === 'delete' ? await api.deleteArchived(ids) : await api.restoreArchived(ids)
+            const results = Array.isArray(payload.results) ? payload.results : []
+            const count = (predicate) => results.filter(predicate).length
+            const parts = [
+              operation === 'delete'
+                ? t('admin.done.deleted', { n: count((row) => row.status === 'deleted') })
+                : t('admin.done.restored', { n: count((row) => row.status === 'restored') }),
+            ]
+            const live = count((row) => row.status === 'refused' && row.reason === 'live')
+            const active = count((row) => row.status === 'refused' && row.reason === 'active')
+            if (live > 0) parts.push(t('admin.refused.live', { n: live }))
+            if (active > 0) parts.push(t('admin.refused.active', { n: active }))
+            const failed = results.length - count((row) => row.status === 'deleted' || row.status === 'restored')
+            if (failed > 0) parts.push(t('admin.failed', { n: failed }))
+            setNotice({ kind: failed > 0 ? 'error' : 'success', text: parts.join(' · ') })
+            setSelected(new Set())
+            await load()
+          } catch (failure) {
+            setNotice({ kind: 'error', text: failure instanceof Error ? failure.message : String(failure) })
+          } finally {
+            setBusy(false)
+          }
+        },
+        [busy, load, t],
+      )
+
+      const emptyState = (titleKey, hintKey) =>
+        h(
+          'div',
+          { className: 'dsks-admin-empty' },
+          h('div', { className: 'dsks-admin-empty-title' }, t(titleKey)),
+          h('div', null, t(hintKey)),
+        )
+
+      const renderWorkspaces = () => {
+        if (inventory === null) return h('div', { className: 'dsks-admin-empty' }, loading ? t('admin.loading') : t('admin.retry'))
+        if (workspaces.length === 0) return emptyState('admin.empty.workspaces', 'admin.empty.workspacesHint')
+        return h(
+          'div',
+          { className: 'dsks-admin-body' },
+          workspaces.map((workspace) => {
+            const ownArchived = archivedForWorkspace(archived, workspace.id)
+            return h(
+              'div',
+              { className: 'dsks-admin-group', key: workspace.id },
+              h(
+                'div',
+                { className: 'dsks-admin-row' },
+                h(Icon, { name: 'folder', size: 15 }),
+                h(
+                  'div',
+                  { className: 'dsks-admin-row-main' },
+                  h('div', { className: 'dsks-admin-row-title' }, workspace.title),
+                  h('div', { className: 'dsks-admin-row-meta', title: workspace.path }, workspace.path),
+                ),
+                h(
+                  'div',
+                  { className: 'dsks-admin-badges' },
+                  workspace.status === 'missing-dir'
+                    ? h('span', { className: 'dsks-admin-badge', 'data-kind': 'missing' }, t('admin.workspace.missing'))
+                    : null,
+                  h('span', { className: 'dsks-admin-badge' }, t('admin.workspace.sessions', { n: workspace.sessionCount })),
+                  ownArchived.length > 0
+                    ? h('span', { className: 'dsks-admin-badge' }, t('admin.workspace.archived', { n: ownArchived.length }))
+                    : null,
+                  Array.isArray(workspace.previousPaths) && workspace.previousPaths.length > 0
+                    ? h(
+                        'span',
+                        { className: 'dsks-admin-badge', 'data-kind': 'stale', title: t('admin.workspace.previousTitle', { list: workspace.previousPaths.join(' · ') }) },
+                        t('admin.workspace.previous', { n: workspace.previousPaths.length }),
+                      )
+                    : null,
+                ),
+              ),
+              // 已归档的会话直接挂在工作区名下，「已归档」页签仍是完整的跨工作区清单。
+              ownArchived.length === 0 ? null : h('div', { className: 'dsks-admin-children' }, ownArchived.map(renderWorkspaceArchivedRow)),
+            )
+          }),
+        )
+      }
+
+      /**
+       * 工作区页签里嵌在工作区名下的已归档会话行：比「已归档」页签的行更紧凑，
+       * 不带勾选框（批量操作只在「已归档」页签做），但保留恢复与删除。
+       */
+      const renderWorkspaceArchivedRow = (row) => {
+        const live = row.live?.running ? t('admin.row.running') : row.live?.agent ? t('admin.row.agent') : null
+        return h(
+          'div',
+          { className: 'dsks-admin-row dsks-admin-nested', key: row.id },
+          h(Icon, { name: 'archive', size: 13 }),
+          h(
+            'div',
+            { className: 'dsks-admin-row-main' },
+            h('div', { className: 'dsks-admin-row-title' }, sessionTitle(sessions, row.id)),
+            h('div', { className: 'dsks-admin-row-meta', title: row.cwd ?? row.id }, `${row.cwd ?? '—'} · ${formatTime(row.createdAt)}`),
+          ),
+          h(
+            'div',
+            { className: 'dsks-admin-badges' },
+            live !== null ? h('span', { className: 'dsks-admin-badge', 'data-kind': 'live' }, live) : null,
+            !row.exists ? h('span', { className: 'dsks-admin-badge', 'data-kind': 'missing' }, t('admin.row.missing')) : null,
+            row.stalePath === true
+              ? h('span', { className: 'dsks-admin-badge', 'data-kind': 'stale', title: row.previousPath ?? row.cwd ?? '' }, t('admin.row.previousPath'))
+              : null,
+            row.childIds.length > 0
+              ? h('span', { className: 'dsks-admin-badge' }, t('admin.row.children', { n: row.childIds.length }))
+              : null,
+          ),
+          h(
+            'div',
+            { className: 'dsks-admin-row-side' },
+            h('span', { className: 'dsks-admin-size', title: t('admin.files', { n: row.fileCount }) }, formatSize(row.sizeBytes)),
+            h(Button, { variant: 'secondary', icon: 'restore', onClick: () => run('restore', [row.id]) }, t('admin.row.restore')),
+            h(Button, { variant: 'danger', icon: 'trash', onClick: () => setPendingDelete([row.id]) }, t('admin.row.delete')),
+          ),
+        )
+      }
+
+      const renderArchivedRow = (row) => {
+        const live = row.live?.running ? t('admin.row.running') : row.live?.agent ? t('admin.row.agent') : null
+        return h(
+          'div',
+          { className: 'dsks-admin-row', key: row.id },
+          h('input', {
+            type: 'checkbox',
+            className: 'dsks-admin-check',
+            checked: selected.has(row.id),
+            onChange: () => toggleRow(row.id),
+            'aria-label': sessionTitle(sessions, row.id),
+          }),
+          h(
+            'div',
+            { className: 'dsks-admin-row-main' },
+            h('div', { className: 'dsks-admin-row-title' }, sessionTitle(sessions, row.id)),
+            h('div', { className: 'dsks-admin-row-meta', title: row.cwd ?? row.id }, `${row.cwd ?? '—'} · ${formatTime(row.createdAt)}`),
+          ),
+          h(
+            'div',
+            { className: 'dsks-admin-badges' },
+            live !== null ? h('span', { className: 'dsks-admin-badge', 'data-kind': 'live' }, live) : null,
+            !row.exists ? h('span', { className: 'dsks-admin-badge', 'data-kind': 'missing' }, t('admin.row.missing')) : null,
+            row.stalePath === true
+              ? h('span', { className: 'dsks-admin-badge', 'data-kind': 'stale', title: row.previousPath ?? row.cwd ?? '' }, t('admin.row.previousPath'))
+              : null,
+            row.childIds.length > 0
+              ? h('span', { className: 'dsks-admin-badge' }, t('admin.row.children', { n: row.childIds.length }))
+              : null,
+          ),
+          h(
+            'div',
+            { className: 'dsks-admin-row-side' },
+            h('span', { className: 'dsks-admin-size', title: t('admin.files', { n: row.fileCount }) }, formatSize(row.sizeBytes)),
+            h(Button, { variant: 'secondary', icon: 'restore', onClick: () => run('restore', [row.id]) }, t('admin.row.restore')),
+            h(Button, { variant: 'danger', icon: 'trash', onClick: () => setPendingDelete([row.id]) }, t('admin.row.delete')),
+          ),
+        )
+      }
+
+      const renderArchived = () => {
+        if (inventory === null) return h('div', { className: 'dsks-admin-empty' }, loading ? t('admin.loading') : t('admin.retry'))
+        if (archived.length === 0) return emptyState('admin.empty.archived', 'admin.empty.archivedHint')
+        return h(
+          'div',
+          { className: 'dsks-admin-body' },
+          h(
+            'div',
+            { className: 'dsks-admin-toolbar' },
+            h(
+              'div',
+              { className: 'dsks-admin-search' },
+              h(Icon, { name: 'search', size: 14 }),
+              h('input', {
+                value: query,
+                placeholder: t('admin.search'),
+                onChange: (event) => setQuery(event.target.value),
+                'aria-label': t('admin.search'),
+              }),
+              query === ''
+                ? null
+                : h(
+                    'button',
+                    { type: 'button', onClick: () => setQuery(''), 'aria-label': t('admin.clearSearch') },
+                    h(Icon, { name: 'close', size: 13 }),
+                  ),
+            ),
+            h(
+              Button,
+              { variant: 'secondary', onClick: () => setSelected(new Set(visible.map((row) => row.id))) },
+              t('admin.selectAll'),
+            ),
+            selected.size > 0
+              ? h(
+                  Button,
+                  { variant: 'secondary', icon: 'restore', busy, onClick: () => run('restore', [...selected]) },
+                  `${t('admin.restoreSelected')} · ${selected.size}`,
+                )
+              : null,
+            selected.size > 0
+              ? h(
+                  Button,
+                  { variant: 'danger', icon: 'trash', onClick: () => setPendingDelete([...selected]) },
+                  `${t('admin.deleteSelected')} · ${selected.size}`,
+                )
+              : null,
+          ),
+          visible.length === 0
+            ? h('div', { className: 'dsks-admin-empty' }, t('admin.noMatch'))
+            : groups.map((group) =>
+                h(
+                  'div',
+                  { className: 'dsks-admin-group', key: group.key },
+                  h(
+                    'div',
+                    { className: 'dsks-admin-group-head' },
+                    h(Icon, { name: group.key === '__ungrouped__' ? 'archive' : 'folder', size: 14 }),
+                    h('div', { className: 'dsks-admin-group-title' }, group.title),
+                    group.path === '' ? null : h('div', { className: 'dsks-admin-group-path', title: group.path }, group.path),
+                    h('span', { className: 'dsks-admin-count' }, String(group.rows.length)),
+                  ),
+                  group.rows.map(renderArchivedRow),
+                ),
+              ),
+        )
+      }
+
+      return h(
+        'div',
+        { className: 'dsks-admin' },
+        h(
+          'div',
+          { className: 'dsks-admin-head' },
+          h(
+            'div',
+            { className: 'dsks-admin-head-text' },
+            h('div', { className: 'dsks-admin-title' }, t('admin.title')),
+            h('div', { className: 'dsks-admin-sub' }, t('admin.subtitle')),
+          ),
+          h(Button, { variant: 'secondary', icon: 'refresh', busy: loading, onClick: load }, loading ? t('admin.refreshing') : t('admin.refresh')),
+        ),
+        h(
+          'div',
+          { className: 'dsks-admin-tabs', role: 'tablist' },
+          h(
+            'button',
+            { type: 'button', className: 'dsks-admin-tab', 'data-active': tab === 'workspaces' ? '' : undefined, onClick: () => setTab('workspaces'), role: 'tab' },
+            `${t('admin.tab.workspaces')} ${workspaces.length}`,
+          ),
+          h(
+            'button',
+            { type: 'button', className: 'dsks-admin-tab', 'data-active': tab === 'archived' ? '' : undefined, onClick: () => setTab('archived'), role: 'tab' },
+            `${t('admin.tab.archived')} ${archived.length}`,
+          ),
+        ),
+        notice !== null ? h(Notice, { notice, onDismiss: () => setNotice(null) }) : null,
+        error !== null
+          ? h(
+              'div',
+              { className: 'dsks-admin-error' },
+              t('admin.loadFailed', { message: error }),
+              ' ',
+              h('button', { type: 'button', className: 'dsks-icon-button', 'aria-label': t('admin.retry'), onClick: load }, h(Icon, { name: 'refresh' })),
+            )
+          : null,
+        tab === 'workspaces' ? renderWorkspaces() : renderArchived(),
+        h(
+          'div',
+          { className: 'dsks-admin-foot' },
+          h(Switch, {
+            id: 'dsks-admin-hide-archived',
+            checked: hidden,
+            label: t('admin.hideArchived'),
+            hint: t('admin.hideArchivedHint'),
+            onChange: (value) => {
+              setHidden(value)
+              writeHideArchived(value)
+            },
+          }),
+          h('div', { className: 'dsks-admin-foot-text' }, t('admin.footnote')),
+        ),
+        pendingDelete !== null
+          ? h(DeleteArchivedDialog, {
+              t,
+              sessions,
+              rows: archived.filter((row) => pendingDelete.includes(row.id)),
+              onCancel: () => setPendingDelete(null),
+              onConfirm: () => {
+                const ids = pendingDelete
+                setPendingDelete(null)
+                run('delete', ids)
+              },
+            })
+          : null,
+      )
+    }
+
+    /**
+     * 把工作区行「…」菜单里的「重命名」换成「编辑」。
+     *
+     * `ui-workspace` 的 `ProjectRowItem` 把这个菜单的条目写死在组件里
+     * （`workspaceMenuItems = [{ id: 'rename' }, { id: 'delete' }]`），没有留给
+     * 插件的 slot，所以只能在浮层出现之后改它：
+     *
+     *  1. `pointerdown` 捕获阶段记住是哪一行的「…」被按下（拿到 workspaceId 与锚点）；
+     *  2. 浮层出现后（MutationObserver + rAF 合帧），把第一个条目（官方那个
+     *     「重命名」）的文案换成「编辑」，并打上 `data-dsks-edit`；
+     *  3. `click` 捕获阶段拦掉这个条目自己的 `onClick`（否则会弹出官方那个只能
+     *     改名的重命名对话框），收起菜单，再派发页面内事件，由本组件打开带
+     *     「工作目录」的对话框；万一第 2 步没改到（浮层结构变了），只要刚点过
+     *     「…」又点了「重命名」，这里同样按编辑处理，不至于退回只能改名。
+     *
+     * 这样侧栏行上不再多一个按钮，改名与改目录统一收在官方菜单里。
+     */
+    function SidebarWorkspaceEdit({ ctx }) {
+      const { t } = useLocale(ctx)
+      const [targetId, setTargetId] = useState(null)
+      const [inventory, setInventory] = useState(null)
+      const [failed, setFailed] = useState(false)
+
+      useEffect(() => {
+        const label = t('admin.workspace.edit')
+        let pending = null
+        let anchor = null
+        let timer = 0
+
+        const forget = () => {
+          pending = null
+          anchor = null
+          window.clearTimeout(timer)
+          timer = 0
+        }
+
+        /**
+         * 早期版本往行上注入过一个铅笔按钮，它是我们自己的 DOM（不在 React 树里），
+         * 所以插件重载时不会被卸载，会一直挂在「…」左边。这里把它清掉。
+         */
+        const sweepStale = () => {
+          for (const node of document.querySelectorAll('[data-dsks-workspace-edit]')) node.remove()
+        }
+        sweepStale()
+        // 侧栏可能比本组件晚一帧才画出工作区行，延迟再扫一次。
+        const sweepTimer = window.setTimeout(sweepStale, 1500)
+
+        const idle = (node) => (node.textContent ?? '').trim() === ''
+
+        /** 菜单条目：官方 `MenuItemButton` 是 `<button role="menuitem">`，也可能是带图标的 div。 */
+        const items = (root) => {
+          const found = new Set()
+          for (const node of root.querySelectorAll('[role="menuitem"], button')) {
+            if (!idle(node)) found.add(node)
+          }
+          return [...found]
+        }
+
+        const isRename = (text) => {
+          const trimmed = (text ?? '').trim().toLowerCase()
+          return trimmed === '重命名' || trimmed === 'rename' || trimmed.startsWith('重命名')
+        }
+
+        /**
+         * 条目里的文字叶子：优先挑文案就是「重命名」的那个，否则挑最长的那个，
+         * 免得把右侧的快捷键提示当成标题改掉。
+         */
+        const labelNode = (item) => {
+          const leaves = []
+          for (const node of item.querySelectorAll('span, div')) {
+            if (node.childElementCount === 0 && !idle(node)) leaves.push(node)
+          }
+          const named = leaves.find((node) => isRename(node.textContent))
+          if (named !== undefined) return named
+          let found = null
+          for (const node of item.childNodes) {
+            if (node.nodeType === 3 && (node.textContent ?? '').trim() !== '') found = node
+          }
+          if (found !== null) return found
+          return leaves.reduce((best, node) => (best === null || (node.textContent ?? '').length > (best.textContent ?? '').length ? node : best), null)
+        }
+
+        const relabel = (item) => {
+          const node = labelNode(item)
+          if (node === null) return false
+          if (node.textContent !== label) node.textContent = label
+          item.setAttribute('aria-label', label)
+          item.setAttribute('title', label)
+          return true
+        }
+
+        /**
+         * 只改「工作区菜单」：条目恰好两个（先改名、后删除），或者第一个条目的
+         * 文案就是官方的重命名标题。别的浮层（比如会话行菜单）不动。
+         */
+        const patch = (root) => {
+          if (root === null) return
+          const marked = root.querySelector('[data-dsks-edit]')
+          if (marked !== null) {
+            relabel(marked)
+            return
+          }
+          if (pending === null) return
+          const found = items(root)
+          if (found.length === 0) return
+          const looksLikeRename = isRename(found[0].textContent)
+          if (found.length !== 2 && !looksLikeRename) return
+          const rename = found[0]
+          if (!relabel(rename)) return
+          rename.setAttribute('data-dsks-edit', pending)
+          forget()
+        }
+
+        const onPointerDown = (event) => {
+          const row = event.target instanceof Element ? event.target.closest('[data-row-key^="workspace:"]') : null
+          if (row === null) return
+          const button = event.target instanceof Element ? event.target.closest('button') : null
+          if (button === null || button.closest('.wnFoaW_rowActions') === null) return
+          const workspaceId = (row.getAttribute('data-row-key') ?? '').slice('workspace:'.length)
+          if (workspaceId === '') return
+          pending = workspaceId
+          anchor = button
+          window.clearTimeout(timer)
+          // 点的是「新建会话」那半个按钮时不会有菜单，超时就忘掉。
+          timer = window.setTimeout(forget, 10000)
+        }
+
+        const onClick = (event) => {
+          const target = event.target instanceof Element ? event.target : null
+          if (target === null) return
+          const item = target.closest('[data-dsks-edit]')
+          let workspaceId = item === null ? null : item.getAttribute('data-dsks-edit')
+          if (item === null) {
+            if (pending === null) return
+            const entry = target.closest('[role="menuitem"], button')
+            if (entry === null || !isRename(entry.textContent)) return
+            workspaceId = pending
+          }
+          event.preventDefault()
+          event.stopPropagation()
+          // 菜单自己的关闭挂在 document 上：先再点一次「…」收起它，再补一发 Escape 兜底。
+          if (anchor !== null && anchor.isConnected) anchor.click()
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+          forget()
+          if (typeof workspaceId === 'string' && workspaceId !== '') {
+            document.dispatchEvent(new CustomEvent(ADMIN_EDIT_EVENT, { detail: { workspaceId } }))
+          }
+        }
+
+        let scheduled = false
+        const added = new Set()
+        const scan = () => {
+          scheduled = false
+          for (const menu of document.querySelectorAll('[role="menu"]')) patch(menu)
+          for (const node of added) {
+            if (node.isConnected) patch(node)
+          }
+          added.clear()
+          if (pending === null) return
+          // 有些浮层没有 role：退回按结构找，只认「两个带图标文字的条目」。
+          for (const host of document.body.children) {
+            if (!(host instanceof Element) || host.closest('[data-plugin]') !== null) continue
+            patch(host)
+          }
+        }
+        const schedule = (records) => {
+          for (const record of records ?? []) {
+            for (const node of record.addedNodes) {
+              if (node instanceof Element) added.add(node)
+            }
+          }
+          if (scheduled) return
+          scheduled = true
+          requestAnimationFrame(scan)
+        }
+
+        document.addEventListener('pointerdown', onPointerDown, true)
+        document.addEventListener('click', onClick, true)
+        const observer = new MutationObserver(schedule)
+        observer.observe(document.body, { childList: true, subtree: true })
+        return () => {
+          document.removeEventListener('pointerdown', onPointerDown, true)
+          document.removeEventListener('click', onClick, true)
+          observer.disconnect()
+          window.clearTimeout(timer)
+          window.clearTimeout(sweepTimer)
+        }
+      }, [t])
+
+      useEffect(() => {
+        const onEdit = (event) => {
+          const workspaceId = event?.detail?.workspaceId
+          if (typeof workspaceId !== 'string' || workspaceId === '') return
+          setTargetId(workspaceId)
+          setInventory(null)
+          setFailed(false)
+          api
+            .adminInventory()
+            .then((payload) => setInventory(payload))
+            .catch(() => setFailed(true))
+        }
+        document.addEventListener(ADMIN_EDIT_EVENT, onEdit)
+        return () => document.removeEventListener(ADMIN_EDIT_EVENT, onEdit)
+      }, [])
+
+      if (targetId === null) return null
+      if (failed) return null
+      if (inventory === null) return null
+      const workspace = (inventory.workspaces ?? []).find((row) => row.id === targetId)
+      if (workspace === undefined) return null
+      return h(WorkspaceEditDialog, {
+        t,
+        workspace,
+        onClose: () => {
+          setTargetId(null)
+          setInventory(null)
+        },
+        onSaved: () => {
+          setTargetId(null)
+          setInventory(null)
+        },
+      })
+    }
+
+    /**
+     * 「从侧栏隐藏已归档会话」。
+     *
+     * 这是 dsh-archive-purge 的核心行为：DSH 的侧栏只是把归档行变灰，仍然
+     * 占着一行；这里对登记簿里的每个归档 id 写一条
+     * `[data-row-key="session:<id>"]{display:none}`。样式表归本组件所有，
+     * 开关一关就清空，不碰别的样式。
+     */
+    function ArchiveHider({ ctx }) {
+      const workspaces = useServiceSnapshot(ctx, 'workspaces')
+      const [hidden, setHidden] = useState(readHideArchived)
+      const ids = Array.isArray(workspaces?.archivedSessionIds) ? workspaces.archivedSessionIds : []
+
+      useEffect(() => {
+        const onChange = (event) => setHidden(event?.detail?.hidden !== false)
+        document.addEventListener(ADMIN_HIDE_EVENT, onChange)
+        return () => document.removeEventListener(ADMIN_HIDE_EVENT, onChange)
+      }, [])
+
+      const css = useMemo(() => {
+        if (!hidden) return ''
+        const escape = (value) =>
+          typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(value) : String(value).replace(/["\\]/g, '\\$&')
+        return ids.map((id) => `[data-row-key="session:${escape(id)}"]{display:none!important}`).join('\n')
+      }, [hidden, ids])
+
+      useEffect(() => {
+        const style = document.createElement('style')
+        style.setAttribute('data-plugin', PLUGIN_ID)
+        style.setAttribute('data-plugin-css', 'archive-hide')
+        style.textContent = css
+        document.head.append(style)
+        return () => style.remove()
+      }, [css])
+
+      return null
+    }
 
     /* ------------------------------------------------------------------ */
     /* plugin entry                                                        */
@@ -4037,13 +5155,30 @@ let videoSettings = { autoplay: true, muted: true }
     return {
       inject: ['slots'],
       /** Test seam: the row and detail card are unreachable from a static render. */
-      __components: { SkinRow, SkinDetail, ImportDialog, Switch, VideoSettingsDialog, PlaylistPanel, DesignDialog, AboutDialog, RenameDialog },
+      __components: {
+        SkinRow,
+        SkinDetail,
+        ImportDialog,
+        Switch,
+        VideoSettingsDialog,
+        PlaylistPanel,
+        DesignDialog,
+        AboutDialog,
+        RenameDialog,
+        AdminPage,
+        WorkspaceEditDialog,
+        DeleteArchivedDialog,
+        SidebarWorkspaceEdit,
+        ArchiveHider,
+      },
       /** Test seam: the raw dictionaries, so label wording can be asserted. */
       __strings: STRINGS,
       /** Test seam: the download route is a plain request against the Host. */
       __api: api,
       /** Test seam: the percentage rules belong to the component, not the request. */
       __progress: { toProgress, formatMegabytes },
+      /** Test seam: grouping/formatting logic, so it can be asserted without a renderer. */
+      __admin: { groupArchivedRows, archivedRowMatches, archivedForWorkspace, formatSize },
       apply(ctx) {
         const runtime = createRuntime(ctx)
         // ui-theme provides `theme` late (it waits for the settings mirror) and
@@ -4102,6 +5237,20 @@ let videoSettings = { autoplay: true, muted: true }
             /* the page is unusable anyway */
           }
         }
+        // 侧栏入口 + 主面板：DSH 自己没有归档管理界面，也没有改工作目录的
+        // 入口，这两块完全由本插件提供。另外两个 overlay 组件不渲染内容：
+        // 一个把编辑按钮注入工作区行，一个按归档集合写隐藏规则。
+        const register = (name, options, component) => {
+          try {
+            ctx.slots.inject(name, () => ctx.slots.register({ name, ...options }, component))
+          } catch (error) {
+            console.error(`[dsh-skin] 注册 ${name} 失败`, error)
+          }
+        }
+        register('sidebar.panellist', { id: ADMIN_PANEL_ID, order: 20, label: () => translate(ctx, 'admin.panel') }, AdminPanelIcon)
+        register('main', { key: ADMIN_PANEL_ID }, () => h(AdminPage, { ctx }))
+        register('shell.overlay', { id: 'skin.workspace-edit', order: 20 }, () => h(SidebarWorkspaceEdit, { ctx }))
+        register('shell.overlay', { id: 'skin.archive-hide', order: 21 }, () => h(ArchiveHider, { ctx }))
       },
     }
 

@@ -1197,6 +1197,148 @@ console.log('version badge and update sheet')
   }
 }
 
+/* ------------------------------------------------- workspace & archive admin */
+// The panel replaces dsh-archive-purge: a sidebar entry, a central page with two
+// tabs (workspaces / archived), an inline edit button on every sidebar project
+// row, and the "hide archived rows" style layer.
+console.log('workspace & archive admin')
+{
+  const find = (name, idOrKey) =>
+    slotRegistrations.find((entry) => entry.options?.name === name && (entry.options?.id ?? entry.options?.key) === idOrKey)
+
+  const panelEntry = find('sidebar.panellist', 'workspace-admin')
+  check('registers a sidebar entry for the admin panel', Boolean(panelEntry), JSON.stringify(slotRegistrations.map((entry) => entry.options?.name)))
+  check('the sidebar entry is localized', panelEntry?.options?.label?.() === '工作区与归档', String(panelEntry?.options?.label?.()))
+  check('the sidebar entry paints an icon', typeof panelEntry?.component === 'function')
+
+  check('registers the admin page as a main view', Boolean(find('main', 'workspace-admin')))
+
+  const editEntry = find('shell.overlay', 'skin.workspace-edit')
+  const hideEntry = find('shell.overlay', 'skin.archive-hide')
+  check('mounts the sidebar edit button overlay', Boolean(editEntry) && typeof editEntry.component === 'function')
+  check('mounts the archived-row hider', Boolean(hideEntry) && typeof hideEntry.component === 'function')
+
+  const helpers = exportsModule.__admin
+  check('the grouping helpers are exported for testing', typeof helpers?.groupArchivedRows === 'function')
+  if (typeof helpers?.groupArchivedRows === 'function') {
+    const rows = [
+      { id: 's1', workspaceId: 'ws-b', workspaceTitle: 'Beta', workspacePath: 'D:\\Beta', cwd: 'D:\\Beta' },
+      { id: 's2', workspaceId: 'ws-a', workspaceTitle: 'Alpha', workspacePath: 'D:\\Alpha', cwd: 'D:\\Alpha' },
+      { id: 's3', workspaceId: null, workspaceTitle: null, workspacePath: null, cwd: null },
+      { id: 's4', workspaceId: 'ws-a', workspaceTitle: 'Alpha', workspacePath: 'D:\\Alpha', cwd: 'D:\\Alpha' },
+    ]
+    const groups = helpers.groupArchivedRows(rows, (key) => key)
+    check('archived rows are grouped by workspace', groups.length === 3, JSON.stringify(groups.map((group) => group.key)))
+    check(
+      'groups are ordered by title with the ungrouped bucket last',
+      groups.map((group) => group.key).join(',') === 'ws-a,ws-b,__ungrouped__',
+      groups.map((group) => group.key).join(','),
+    )
+    check('rows of one workspace stay together', groups[0].rows.length === 2 && groups[1].rows.length === 1)
+    check('the ungrouped bucket is labelled', groups[2].title === 'admin.group.ungrouped', groups[2].title)
+    check('the group carries the workspace path', groups[0].path === 'D:\\Alpha', groups[0].path)
+  }
+
+  if (typeof helpers?.archivedRowMatches === 'function') {
+    const sessions = { byId: { s2: { displayTitle: '重构登录页' } } }
+    const row = { id: 's2', cwd: 'D:\\Alpha', workspaceTitle: 'Alpha' }
+    check('search matches a title', helpers.archivedRowMatches(row, '重构'.toLowerCase(), sessions))
+    check('search matches a directory', helpers.archivedRowMatches(row, 'd:\\alpha', sessions))
+    check('search matches a session id', helpers.archivedRowMatches(row, 's2', sessions))
+    check('search matches a workspace name', helpers.archivedRowMatches(row, 'alpha', sessions))
+    check('search rejects unrelated text', !helpers.archivedRowMatches(row, 'zzz', sessions))
+  }
+
+  if (typeof helpers?.formatSize === 'function') {
+    check('sizes read in bytes', helpers.formatSize(512) === '512 B', helpers.formatSize(512))
+    check('sizes read in kilobytes', helpers.formatSize(2048) === '2.0 KB', helpers.formatSize(2048))
+    check('sizes read in megabytes', helpers.formatSize(5 * 1024 * 1024) === '5.0 MB', helpers.formatSize(5 * 1024 * 1024))
+  }
+
+  // 工作区页签直接在工作区名下面列出该工作区的已归档会话，「已归档」页签仍是完整清单。
+  if (typeof helpers?.archivedForWorkspace === 'function') {
+    const rows = [
+      { id: 's1', workspaceId: 'ws-a' },
+      { id: 's2', workspaceId: 'ws-b' },
+      { id: 's3', workspaceId: 'ws-a' },
+      { id: 's4', workspaceId: null },
+    ]
+    check('a workspace lists only its own archived sessions', helpers.archivedForWorkspace(rows, 'ws-a').map((row) => row.id).join(',') === 's1,s3')
+    check('the nested list keeps the source order', helpers.archivedForWorkspace(rows, 'ws-a').length === 2)
+    check('a workspace without archived sessions nests nothing', helpers.archivedForWorkspace(rows, 'ws-z').length === 0)
+    check('ungrouped rows stay out of a workspace nest', !helpers.archivedForWorkspace(rows, 'ws-b').some((row) => row.id === 's4'))
+  }
+  check(
+    'the workspace tab nests archived rows under the workspace',
+    source.includes('dsks-admin-children') && source.includes('ownArchived.map(renderWorkspaceArchivedRow)'),
+  )
+  // A row the registry no longer counts (its cwd is an old directory of the
+  // workspace) is drawn with a dashed "old path" badge in both views, and the
+  // workspace header counts those directories.
+  check('old-path rows are badged in both lists', (source.match(/data-kind': 'stale'/g) ?? []).length >= 2, String((source.match(/data-kind': 'stale'/g) ?? []).length))
+  check(
+    'the workspace header counts its old directories',
+    source.includes('workspace.previousPaths.length') && source.includes("t('admin.workspace.previous'"),
+  )
+  check(
+    'a stale badge explains which directory it was',
+    source.includes("title: row.previousPath ?? row.cwd ?? ''"),
+  )
+  // Editing a workspace now happens through the sidebar row menu: the injected
+  // pencil button is gone, and the menu item labelled 重命名 is relabelled to
+  // 编辑 and hijacked before its own onClick can open the rename-only dialog.
+  check(
+    'the sidebar row no longer gets an injected edit button',
+    !source.includes('dsks-admin-ws-edit') &&
+      !source.includes("button.setAttribute('data-dsks-workspace-edit'") &&
+      source.includes('const sweepStale = () => {'),
+  )
+  check(
+    // 老版本注入的按钮活在我们的 React 树之外，插件重载不会带走它，所以要主动清。
+    'leftover injected buttons are swept on mount and shortly after',
+    source.includes("document.querySelectorAll('[data-dsks-workspace-edit]')") &&
+      source.includes('window.setTimeout(sweepStale, 1500)'),
+  )
+  check(
+    'the workspace row menu is rewritten in place',
+    source.includes("querySelectorAll('[role=\"menu\"]')") && source.includes("setAttribute('data-dsks-edit'"),
+  )
+  check(
+    'the hijacked menu item is caught before its own click handler',
+    source.includes("closest('[data-dsks-edit]')") && source.includes("addEventListener('click', onClick, true)"),
+  )
+  check(
+    'the workspace panel dropped its inline edit button',
+    (() => {
+      const start = source.indexOf('const renderWorkspaces =')
+      const end = source.indexOf('const renderWorkspaceArchivedRow =')
+      if (start === -1 || end === -1 || end <= start) return false
+      const region = source.slice(start, end)
+      return !region.includes('dsks-admin-row-side') && !region.includes('admin.workspace.edit') && !source.includes('setEditing')
+    })(),
+  )
+
+  const api = exportsModule.__api ?? {}
+  const adminApi = ['adminInventory', 'updateWorkspace', 'restoreArchived', 'deleteArchived', 'pickWorkspaceDirectory']
+  check(
+    'the admin endpoints are wired into the api map',
+    adminApi.every((name) => typeof api[name] === 'function'),
+    adminApi.filter((name) => typeof api[name] !== 'function').join(','),
+  )
+
+  // Every `admin.*` key the code mentions must exist in both dictionaries with
+  // the same placeholders, or one language silently renders the raw key.
+  const used = new Set()
+  for (const match of source.matchAll(/'admin\.[A-Za-z0-9.]+'/g)) used.add(match[0].slice(1, -1))
+  const zh = exportsModule.__strings?.zh ?? {}
+  const en = exportsModule.__strings?.en ?? {}
+  const untranslated = [...used].filter((key) => typeof zh[key] !== 'string' || typeof en[key] !== 'string')
+  check(`every admin label is translated (${used.size} keys)`, untranslated.length === 0, untranslated.join(','))
+  const params = (text) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort().join(',')
+  const drifted = [...used].filter((key) => zh[key] !== undefined && en[key] !== undefined && params(zh[key]) !== params(en[key]))
+  check('both languages keep the same placeholders', drifted.length === 0, drifted.join(','))
+}
+
 /* ------------------------------------------------------- boot order regression */
 // ui-theme provides `theme` only after the settings mirror resolves behind the
 // remote connection, while the skin's snapshot is one local request: a cold

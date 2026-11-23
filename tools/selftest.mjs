@@ -5,7 +5,7 @@
  *
  *   node tools/selftest.mjs [codexThemesDir]
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -808,6 +808,222 @@ console.log('bundled themes')
   const third = seedBundledThemes(fresh, join(here, '..'))
   check('an existing copy is kept', third.skipped.includes(kept.id) && fresh.get(kept.id)?.name === '我的改名版本')
   rmSync(dir, { recursive: true, force: true })
+}
+
+/* ------------------------------------------------- workspace & archive admin */
+// The admin side talks to two Host services only: `workspaceRegistry` (the
+// single writer of workspace records) and `sessionPersistence` (the log
+// snapshots). Both are faked here so the rules can be asserted without DSH.
+console.log('workspace & archive admin')
+{
+  const { createArchiveAdmin, encodeSegment } = await import('../lib/archive-admin.js')
+
+  check('directory segments match the Host encoder', encodeSegment('a b/c') === 'a~0020b~002Fc', encodeSegment('a b/c'))
+  check('dots are encoded, not dropped', encodeSegment('.') === '~002E' && encodeSegment('..') === '~002E~002E')
+
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-skin-admin-'))
+  const home = join(dir, 'dsh')
+  const project = '--C-demo--'
+  const sessionDir = join(home, 'sessions', project, encodeSegment('sess-1'))
+  mkdirSync(sessionDir, { recursive: true })
+  writeFileSync(join(sessionDir, 'session.jsonl'), Buffer.alloc(120, 1))
+  const cacheDir = join(home, 'storages', 'session_projcache', 'sessions')
+  mkdirSync(cacheDir, { recursive: true })
+  writeFileSync(join(cacheDir, 'sess-1.json'), Buffer.alloc(30, 2))
+
+  const targetA = join(dir, 'alpha')
+  const targetB = join(dir, 'beta')
+  mkdirSync(targetA, { recursive: true })
+  mkdirSync(targetB, { recursive: true })
+
+  const calls = []
+  // Which directory each session logged in — the Host keeps a session in the
+  // bucket only while its cwd still equals the workspace path.
+  const sessionCwd = { 'sess-1': targetA, 'sess-2': targetB }
+  const makeEntity = (record) => ({
+    id: record.id,
+    get title() {
+      return record.title
+    },
+    get path() {
+      return record.path
+    },
+    get createdAt() {
+      return record.createdAt
+    },
+    get updatedAt() {
+      return record.updatedAt
+    },
+    get sessionIds() {
+      return record.sessionIds
+    },
+    async status() {
+      return 'ok'
+    },
+    async mutate(fn) {
+      const next = fn(record)
+      calls.push(`mutate:${record.id}`)
+      Object.assign(record, next, { updatedAt: new Date().toISOString() })
+      record.sessionIds = next.sessionIds.filter((id) => sessionCwd[id] === next.path)
+    },
+  })
+
+  const recordA = { id: 'ws-1', title: 'Alpha', path: targetA, sessionIds: ['sess-1', 'sess-2'], createdAt: '2026-01-01T00:00:00.000Z' }
+  const entityA = makeEntity(recordA)
+  const archivedSessionIds = ['sess-1']
+  const registry = {
+    get archivedSessionIds() {
+      return archivedSessionIds
+    },
+    get pinnedSessionIds() {
+      return []
+    },
+    list: () => [entityA],
+    get: (id) => (id === 'ws-1' ? entityA : undefined),
+    unarchiveSession: (id) => {
+      calls.push(`unarchive:${id}`)
+      const at = archivedSessionIds.indexOf(id)
+      if (at >= 0) archivedSessionIds.splice(at, 1)
+    },
+    unpinSession: (id) => calls.push(`unpin:${id}`),
+  }
+  const persistence = {
+    list: async () => [{ header: { id: 'sess-1', cwd: targetA, createdAt: '2026-01-02T00:00:00.000Z', parentSession: null }, sizeBytes: 120 }],
+  }
+  const ctx = {
+    get: (name) => ({ workspaceRegistry: registry, sessionPersistence: persistence })[name],
+    waterfall: async () => [],
+    emit: (event, payload) => calls.push(`emit:${event}:${payload}`),
+  }
+
+  process.env.DSH_HOME = home
+  try {
+    const admin = createArchiveAdmin({ ctx })
+
+    const inventory = await admin.inventory()
+    check('inventory lists the workspace', inventory.workspaces.length === 1 && inventory.workspaces[0].title === 'Alpha', JSON.stringify(inventory.workspaces))
+    check('the workspace reports the current directory', inventory.workspaces[0].path === targetA, inventory.workspaces[0].path)
+    check('archived sessions are listed', inventory.archived.length === 1 && inventory.archived[0].id === 'sess-1')
+    check('the log size comes off disk', inventory.archived[0].sizeBytes === 120, String(inventory.archived[0].sizeBytes))
+    check('the projection cache size is measured', inventory.archived[0].cacheBytes === 30, String(inventory.archived[0].cacheBytes))
+    check('the row names its workspace', inventory.archived[0].workspaceId === 'ws-1' && inventory.archived[0].workspaceTitle === 'Alpha')
+
+    // Rename only: nothing detaches, the directory stays put.
+    const renamed = await admin.updateWorkspace({ workspaceId: 'ws-1', title: 'Alpha 改名' })
+    check('a rename sticks', renamed.changed === true && recordA.title === 'Alpha 改名', JSON.stringify(recordA.title))
+    check('a rename keeps the directory', recordA.path === targetA, recordA.path)
+
+    // Move: the session whose cwd no longer matches falls out of the bucket.
+    const moved = await admin.updateWorkspace({ workspaceId: 'ws-1', path: targetB })
+    check('a directory change is stored canonically', recordA.path === realpathSync(targetB), recordA.path)
+    check('sessions with the old cwd detach', moved.detached.length === 1 && moved.detached[0] === 'sess-1', JSON.stringify(moved.detached))
+    check(
+      'the previous directory is remembered',
+      Array.isArray(moved.workspace.previousPaths) && moved.workspace.previousPaths.includes(targetA),
+      JSON.stringify(moved.workspace.previousPaths),
+    )
+
+    // DSH's own model cannot hold a session whose cwd drifted away, so the panel
+    // keeps its own ledger of old directories and attributes those rows itself.
+    const drifted = await admin.inventory()
+    const driftedRow = drifted.archived.find((row) => row.id === 'sess-1')
+    check(
+      'a detached session stays under its workspace as an old-path row',
+      driftedRow?.workspaceId === 'ws-1' && driftedRow?.stalePath === true,
+      JSON.stringify(driftedRow),
+    )
+    check('the old-path row keeps its own cwd', driftedRow?.previousPath === targetA, JSON.stringify(driftedRow?.previousPath))
+    check(
+      'the workspace lists its old directories',
+      Array.isArray(drifted.workspaces[0].previousPaths) && drifted.workspaces[0].previousPaths.includes(targetA),
+      JSON.stringify(drifted.workspaces[0].previousPaths),
+    )
+
+    // Pointing the workspace back at the old directory makes those rows current
+    // again — the registry dropped them from sessionIds, so this is the panel's
+    // own attribution doing the work (and there is nothing left to detach).
+    const back = await admin.updateWorkspace({ workspaceId: 'ws-1', path: targetA })
+    check('moving back has nothing else to detach', back.detached.length === 0, JSON.stringify(back.detached))
+    check(
+      'moving back remembers the directory it left',
+      back.workspace.previousPaths.length === 1 && back.workspace.previousPaths[0] === realpathSync(targetB),
+      JSON.stringify(back.workspace.previousPaths),
+    )
+    const restored = await admin.inventory()
+    const restoredRow = restored.archived.find((row) => row.id === 'sess-1')
+    check(
+      'a row whose cwd is the current directory is not flagged',
+      restoredRow?.workspaceId === 'ws-1' && restoredRow?.stalePath === false,
+      JSON.stringify(restoredRow),
+    )
+
+    let rejected = ''
+    try {
+      await admin.updateWorkspace({ workspaceId: 'ws-1', path: join(dir, 'missing') })
+    } catch (error) {
+      rejected = String(error.message)
+    }
+    check('a missing directory is refused', rejected.includes('工作目录不存在'), rejected)
+    check('the refused move leaves the record alone', recordA.path === realpathSync(targetA))
+
+    const deleted = await admin.deleteSessions(['sess-1'])
+    check('deleting reports the removed session', deleted.results[0]?.status === 'deleted', JSON.stringify(deleted.results[0]))
+    check('the log directory is gone', existsSync(sessionDir) === false)
+    check('the projection cache is gone', existsSync(join(cacheDir, 'sess-1.json')) === false)
+    check(
+      'the Host is told to drop the row',
+      calls.includes('emit:api-session/removed:sess-1') && calls.includes('unarchive:sess-1') && calls.includes('unpin:sess-1'),
+      calls.join(' '),
+    )
+    const again = await admin.deleteSessions(['sess-1'])
+    check('a second delete is skipped', again.results[0]?.status === 'skipped', JSON.stringify(again.results[0]))
+
+    // A session whose log directory disappeared outside DSH is still archived in
+    // the registry: it must show up as a row marked missing, not vanish, or the
+    // user could never clear the stale registry entry.
+    archivedSessionIds.push('sess-ghost')
+    const missing = await admin.inventory()
+    const ghost = missing.archived.find((row) => row.id === 'sess-ghost')
+    check('a missing log is reported, not hidden', ghost !== undefined && ghost.exists === false, JSON.stringify(missing.archived.map((row) => row.id)))
+
+    // The HTTP wiring is the part that can silently go wrong (wrong action name,
+    // wrong JSON shape), so drive it through a real server once.
+    const handler = createSkinHandler(
+      { pickDirectory: async () => join(dir, 'alpha') },
+      { store: null, log: () => {}, meta: { name: '@xxue-z/dsh-skin', version: '0.0.0' }, admin },
+    )
+    const server = createServer(handler)
+    await new Promise((done) => server.listen(0, '127.0.0.1', done))
+    const base = `http://127.0.0.1:${server.address().port}`
+    const post = (action, body) =>
+      fetch(`${base}/skin/api/${action}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then((response) => response.json())
+
+    const wireInventory = await fetch(`${base}/skin/api/admin-inventory`).then((response) => response.json())
+    check('the inventory route answers', wireInventory.ok === true && Array.isArray(wireInventory.workspaces), JSON.stringify(Object.keys(wireInventory)))
+    check('the inventory route returns the archived rows', Array.isArray(wireInventory.archived) && wireInventory.archived.some((row) => row.id === 'sess-ghost'))
+
+    const wireRename = await post('workspace-update', { workspaceId: 'ws-1', title: 'HTTP 改名' })
+    check('the update route applies a rename', wireRename.ok === true && wireRename.workspace.title === 'HTTP 改名', JSON.stringify(wireRename))
+    const wireReject = await post('workspace-update', { workspaceId: 'ws-1', path: 'relative\\dir' })
+    check('the update route surfaces a rejection', wireReject.ok === false && String(wireReject.error).includes('必须是绝对路径'), JSON.stringify(wireReject))
+
+    const wirePick = await post('pick-directory', { initial: '', description: '' })
+    check('the picker route returns a directory', wirePick.ok === true && wirePick.path === join(dir, 'alpha'), JSON.stringify(wirePick))
+
+    const wireDelete = await post('archive-delete', { ids: ['sess-ghost'] })
+    check('the delete route reports a result', wireDelete.ok === true && Array.isArray(wireDelete.results), JSON.stringify(wireDelete))
+    const wireUnarchive = await post('archive-unarchive', { ids: [] })
+    check('an empty unarchive is refused, not silently ok', wireUnarchive.ok === false, JSON.stringify(wireUnarchive))
+
+    await new Promise((done) => server.close(done))
+  } finally {
+    delete process.env.DSH_HOME
+    rmSync(dir, { recursive: true, force: true })
+  }
 }
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`)
