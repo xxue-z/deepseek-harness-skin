@@ -161,6 +161,52 @@ skin_theme {"action":"apply","id":"skin.crimson-mecha-nova"}
 skin_theme {"action":"transparency","id":"skin.crimson-mecha-nova","transparency":45}
 ```
 
+## 红果短剧（hongguo）
+
+插件还带了一个 `hongguo` 工具：在对话里读这台电脑上的**红果短剧/漫剧**观看历史与追更、
+按方向搜索并推荐，然后给分享链接、或直接把某一集铺成桌面的动态视频背景。
+
+```
+hongguo {"action":"status"}                                    # 引擎 / 登录 / 分类 / 片段目录
+hongguo {"action":"login"}                                     # 开始扫码
+hongguo {"action":"login","confirm":true}                      # 扫完在手机上确认后轮询一次
+hongguo {"action":"history","limit":20}                        # 看过什么、看到第几集多少秒
+hongguo {"action":"recommend"}                                 # 首页推荐流
+hongguo {"action":"search","query":"逆袭"}                      # 搜索
+hongguo {"action":"series","seriesId":"7677895810238925886"}   # 详情 + 分集表
+hongguo {"action":"share","seriesId":"…","episode":1}          # 手机能打开的短链
+hongguo {"action":"play","seriesId":"…","episode":1,"mode":"url"}         # 本机同源播放地址
+hongguo {"action":"play","seriesId":"…","episode":1,"mode":"background"}  # 下载并铺成背景
+hongguo {"action":"play","seriesId":"…","episode":1,"mode":"background","prefetch":3}  # 顺带预取后 3 集
+hongguo {"action":"prefetch","seriesId":"…","episode":4,"prefetch":5}     # 只补文件，不动背景列表
+hongguo {"action":"clips"}                                     # 已下载的片段
+```
+
+背景列表**播完自动切下一集**（只有一个片段时才循环）。`prefetch` 把后面几集提前拉到
+`hongguo/clips/`，切换时就不用等下载：上限 10 集，已存在的集自动跳过（重复调用安全），
+按顺序下载（每集一次 `PlayInfo` + 一次本机代理传输，并发没有收益）。
+
+**为什么需要一个引擎进程**：红果每个请求都带 `X-Argus`（字节的 `field13vm` 字节码 VM 算出来的）
+和 `X-Gorgon` 签名，签名不对时服务端只回 `200` + 空 body，纯脚本复现不成立（已实测：
+算法能还原、签名头补全后仍空 body）。所以插件把**红果电脑版**当本地引擎：
+
+- 没装就自动下便携版（`wangbin1322/hongguo-player` 的 release，约 18 MB zip）解到 `hongguo/engine/`；
+- 已经在跑就直接复用它的 CDP 端口，没跑就静默启动（窗口挪到屏幕外的负坐标）；
+- 通过 `window.go.app.App.*`（Wails 绑定）调用，媒体从它的 `127.0.0.1:<port>` 经
+  `/skin/hongguo/media`、`/skin/hongguo/img` 同源转发，页面不需要跨域。
+
+**已知限制**：
+
+- 红果只出 **HEVC(H.265)**（`bytevc1`）。Chromium 要播它，系统得装「HEVC 视频扩展」，
+  播放器目录里带了 `HEVC视频扩展-双击安装.appx`；黑屏就用 `mode:"share"` 走手机。
+- `获取播放地址失败: 服务端返回了空内容` 表示这台机器拿不到播放地址，需要在客户端
+  `设置 → 播放` 里填自己手机红果 App 的设备号。
+- 背景视频列表的**开关**是 Host 内存态，重启后要重新打开；下载下来的片段在
+  `hongguo/clips/`，一集 1080p 约 20 MB。
+
+配套的 skill 说明在 [skills/hongguo/SKILL.md](skills/hongguo/SKILL.md)；
+想让它出现在对话的 skill 列表里，把那个目录复制到 `%USERPROFILE%\.dsh\skills\hongguo`。
+
 ## 它是怎么生效的
 
 - **配色**：`ctx.theme.register({id, colorScheme, tokens})` 把主题注册进 Harness 主题注册表，
@@ -203,6 +249,9 @@ skin_theme {"action":"transparency","id":"skin.crimson-mecha-nova","transparency
   themes/<id>/theme.json         # 皮肤定义（配色、壁纸焦点、视频元数据、来源元数据）
   themes/<id>/wallpaper.<ext>    # 壁纸原图（必需，也是视频的海报帧）
   themes/<id>/video.mp4          # 动态壁纸（可选）
+  hongguo/engine/                # 按需下载的便携版红果引擎（含 ffmpeg.exe、HEVC 扩展安装包）
+  hongguo/engine/state.json      # 引擎 exe 路径、CDP 端口、pid
+  hongguo/clips/                 # `mode:"background"` 下载的整集片段
 ```
 
 `state.json` 里的 `playlist` 存文件夹、倍速、画中画、最近 20 条历史和 `position`（第几个、第几秒）；
@@ -227,6 +276,12 @@ skin_theme {"action":"transparency","id":"skin.crimson-mecha-nova","transparency
 | `lib/zip.js` | 最小 ZIP 读取器（stored + deflate，无第三方依赖） |
 | `lib/api.js` | `/skin/api/*` 与 `/skin/assets/*` |
 | `lib/tool.js` | `skin_theme` 工具定义 |
+| `lib/hongguo/engine.js` | 红果引擎：找/下便携版、离屏静默启动、端口复用、退出还原窗口 |
+| `lib/hongguo/cdp.js` | 极小 CDP 客户端（WebSocket + `Runtime.evaluate`），零依赖 |
+| `lib/hongguo/api.js` | `window.go.app.App.*` 包装：历史/搜索/推荐/详情/播放地址/分享/扫码 |
+| `lib/hongguo/media.js` | `/skin/hongguo/*` 同源转发（含 `Range`）+ 整集分块下载 |
+| `lib/hongguo/tool.js` | `hongguo` 工具定义 |
+| `skills/hongguo/SKILL.md` | 配套技能说明（复制到 `~/.dsh/skills/hongguo` 可用） |
 | `tools/asar.mjs` | 维护者工具：只读查看安装包 `app.asar` 里的文件（排查宿主 API 用） |
 
 ## 自测

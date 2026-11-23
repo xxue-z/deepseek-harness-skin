@@ -9,6 +9,45 @@
 
 该插件从桌面版自带的那个版本起步，版本号记作 `1.0.1`。
 
+## 未发布
+
+**新增：红果短剧（`hongguo` 工具）——读历史、按方向推荐、分享链接、铺成动态背景**
+
+- 红果的每个请求都要带 `X-Argus` + `X-Gorgon` 签名（`X-Argus` 由字节的 `field13vm` 字节码 VM 算出），
+  签名缺失或不对时服务端只回 `200` + 空 body。已实测：`X-Gorgon` 能完整还原
+  （`hdr20 = md5(a)[:4] ‖ md5(b)[:4] ‖ 0 ‖ 00 03 0a 04 ‖ BE32(tick)`，`key8 = 4a 00 16 hi(ver) 47 6c 80 lo(ver)`，
+  标准 RC4 后再逐字节混淆），但补上签名仍然空 body —— 所以纯脚本路线不成立。
+- 因此把**红果电脑版当本地引擎**：`lib/hongguo/engine.js` 负责找已安装的、复用已运行的、
+  或按需下载便携版（约 18 MB zip）并把它**离屏静默启动**（改 `window.json` 到负坐标，
+  退出时还原），只用它的 CDP + Wails 绑定。
+- `lib/hongguo/{cdp,api}.js` 封装 `window.go.app.App.*`：`Status`、`FeedCategories`、`History`、
+  `Recommend`、`Search`、`SearchSuggest`、`SeriesDetail`、`PlayInfo`、`ShareLink`、`QRLogin*`、
+  `Favorites`、`FollowUpdates`；BigInt 统一转 number/string。
+- `lib/hongguo/media.js` 做两件事：把 `127.0.0.1:<port>` 的媒体/封面经 `/skin/hongguo/{media,img}`
+  同源转发（透传 `Range`，封面由 App 自己把 HEIC 转成 JPEG）；以及把一集**整集下载**到
+  `hongguo/clips/`（App 的代理对无 `Range` 请求只给 4 MiB，所以按 1 MiB 窗口分块拉）。
+- `lib/hongguo/tool.js` 注册 `hongguo` 工具：`status/login/history/search/recommend/series/share/play/clips/prefetch`；
+  `play` 的 `mode` 支持 `share`（手机短链）、`url`（本机同源地址）、`background`
+  （下载后切换皮肤的背景视频列表并打开）。
+- 连播与预取：背景列表本来就是「播完自动切下一集」（`client.js` 在 `ended` 时
+  `advancePlaylist(1)`，只有一个片段才循环），但切换会等下载。故 `play mode="background"`
+  新增 `prefetch: N`，并新增 `action="prefetch"`（只补文件、不动背景列表）：
+  按 `episodeList` 顺序把后 N 集下到 `hongguo/clips/`，上限 10 集，已存在的集跳过
+  （重复调用安全）；每集一次 `PlayInfo` + 一次本机代理传输，故刻意串行。
+- 修正一个容易踩的语义：`PlayInfo(seriesId, …)` 的第二个参数是**这一集的 videoId**，不是集号；
+  传集号会得到 `获取播放地址失败: 服务端返回了空内容…` 或挂 90s 超时。
+  所以 `play` 先 `SeriesDetail` 把 1 基集号映射成 `episodeList[].id` 再取播放地址。
+- 单实例与就绪竞态的处理：App 用命名 Mutex 独占，所以「已在跑但没开调试端口」时
+  `ensure()` 会先 `taskkill` 掉旧实例再带端口重启（`tasklist` 用 `/FI` 在 Windows 侧过滤，
+  避免中文进程名在 OEM 代码页里变乱码）；调试端口一开就返回还太早——SPA 还没装载 Wails 运行时，
+  此时求值会抛 `Cannot read properties of undefined (reading 'app')`，故新增
+  `cdp.waitReady()` 轮询 `typeof window.go?.app?.App` 再放行。
+- 附带 `skills/hongguo/SKILL.md`（复制到 `~\.dsh\skills\hongguo\` 即可被对话识别）与 README 的用法一节。
+- 已知限制：红果只出 HEVC（`bytevc1`），Chromium 需要系统装「HEVC 视频扩展」；
+  本机 `PlayInfo` 若报空内容，需要用户在客户端 `设置 → 播放` 填手机端设备号。
+- 附 `skills/hongguo/SKILL.md`：把该目录复制到 `%USERPROFILE%\.dsh\skills\hongguo` 即可在对话里当技能用
+  （DSH 没有插件注册 skill 的扩展点，这一份是给用户手动落的说明）。
+
 ## 1.0.21 — 2026-11-18
 
 **修复：重启后主题皮肤不自动生效，要进主题设置里重新应用一次**

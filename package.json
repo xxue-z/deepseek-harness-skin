@@ -26,6 +26,7 @@
     "locale/*.json",
     "icon.svg",
     "bundled-themes",
+    "skills",
     "README.md",
     "CHANGELOG.md"
   ],

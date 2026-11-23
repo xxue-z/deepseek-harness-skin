@@ -1,5 +1,7 @@
 node_modules/
 .scratch/
+.temp/
+ghidra-work/
 *.log
 .DS_Store
 Thumbs.db

@@ -13,6 +13,9 @@ import { fileURLToPath } from 'node:url'
 import { gunzipSync } from 'node:zlib'
 import { createSkinHandler } from './lib/api.js'
 import { seedBundledThemes } from './lib/bundled.js'
+import { createEngine } from './lib/hongguo/engine.js'
+import { forward } from './lib/hongguo/media.js'
+import { createHongguoPlayTool } from './lib/hongguo/tool.js'
 import { defaultCodexDirs, SkinService } from './lib/service.js'
 import { SkinStore } from './lib/store.js'
 import { createSkinTool } from './lib/tool.js'
@@ -184,6 +187,7 @@ function normalizeConfig(config) {
     codexDirs: codexDirs.length > 0 ? codexDirs : defaultCodexDirs(),
     designerModel,
     enableTool: input.enableTool !== false,
+    enableHongguo: input.enableHongguo !== false,
   }
 }
 
@@ -233,12 +237,39 @@ export function apply(ctx, config) {
     meta,
   })
 
-  const handler = createSkinHandler(service, { store, log, meta })
+  const handler = createSkinHandler(service, { store, log, meta, hongguo: hongguoRoutes })
+
+  // ---- 红果短剧 bridge ------------------------------------------------------
+  // The desktop app is the only component that can sign upstream requests, so
+  // the skill runs it as a hidden engine and talks to its Wails bindings over
+  // CDP. Media and covers are forwarded through `/skin/hongguo/*` so the page
+  // stays same-origin and never needs CORS from the app's loopback server.
+  const hongguoRoot = join(store.root, 'hongguo')
+  const hongguoClips = join(hongguoRoot, 'clips')
+  const hongguoEngine = createEngine({ root: hongguoRoot, packageDir: PACKAGE_DIR, log })
+
+  /** Serve one proxied media/image request; false means "not our route". */
+  async function hongguoRoutes(request, response, url) {
+    if (!url.pathname.startsWith('/skin/hongguo/')) return false
+    const target = url.searchParams.get('u')
+    if (url.pathname === '/skin/hongguo/media' && typeof target === 'string') {
+      await forward(request, response, target, 'media')
+      return true
+    }
+    if (url.pathname === '/skin/hongguo/img' && typeof target === 'string') {
+      await forward(request, response, target, 'image')
+      return true
+    }
+    return false
+  }
 
   // Fold the playlist position into state.json on the way out, so a quit that
   // lands between two client reports still resumes on the right clip. The
   // playlist switch itself is memory-only and is off again on the next start.
-  ctx.effect(() => () => service.stop())
+  ctx.effect(() => () => {
+    hongguoEngine.stop()
+    service.stop()
+  })
 
   ctx.inject(['webServer'], (webCtx) => {
     webCtx.effect(() => webCtx.webServer.register({ kind: 'prefix', path: '/skin', handler }))
@@ -325,6 +356,20 @@ export function apply(ctx, config) {
         toolState.registered = false
         toolState.error = error instanceof Error ? error.message : String(error)
         log(`skin_theme 注册失败：${toolState.error}`)
+      }
+
+      // 红果短剧 runs as its own tool: it is the only piece that may start a
+      // second desktop app, so it stays opt-out rather than piggy-backing on
+      // skin_theme's action list.
+      if (options.enableHongguo !== false) {
+        try {
+          const hongguoDisposer = toolCtx.tools.register(
+            createHongguoPlayTool({ engine: hongguoEngine, service, clipsDir: hongguoClips, log }),
+          )
+          toolCtx.effect(() => hongguoDisposer)
+        } catch (error) {
+          log(`hongguo 注册失败：${error instanceof Error ? error.message : String(error)}`)
+        }
       }
     })
   }
